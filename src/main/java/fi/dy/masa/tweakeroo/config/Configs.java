@@ -234,9 +234,9 @@ public class Configs implements IConfigHandler
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
                 ELYTRA_FIX,
                 MAC_HORIZONTAL_SCROLL,
+                RAVAGER_CLIENT_BLOCK_BREAK_FIX,
                 CHEST_MIRROR_FIX,
-                LAVA_DESTROY_FIX,
-                RAVAGER_CLIENT_BLOCK_BREAK_FIX
+                LAVA_DESTROY_FIX
         );
     }
 
