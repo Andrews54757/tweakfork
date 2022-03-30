@@ -1,6 +1,9 @@
 package fi.dy.masa.tweakeroo.mixin;
 
 import java.util.function.Predicate;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -14,15 +17,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.GameOptions;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.DiffuseLighting;
 import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.util.Window;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.AbstractDecorationEntity;
+import net.minecraft.util.math.Matrix4f;
 import fi.dy.masa.tweakeroo.config.Callbacks;
 import fi.dy.masa.tweakeroo.config.Configs;
 import fi.dy.masa.tweakeroo.config.FeatureToggle;
 import fi.dy.masa.tweakeroo.config.Hotkeys;
+import fi.dy.masa.tweakeroo.renderer.RenderUtils;
+import fi.dy.masa.tweakeroo.tweaks.RenderTweaks;
 import fi.dy.masa.tweakeroo.util.CameraUtils;
+import fi.dy.masa.tweakeroo.util.IMixinWindow;
 import fi.dy.masa.tweakeroo.util.MiscUtils;
 
 @Mixin(value = GameRenderer.class, priority = 1001)
@@ -152,4 +162,15 @@ public abstract class MixinGameRenderer
             ci.cancel();
         }
     }
+
+    // @Inject(method = "render", at = @At("RETURN"))
+    // private void renderEnd(float tickDelta, long startTime, boolean tick, CallbackInfo ci) {
+    //     if (!FeatureToggle.TWEAK_STANDARD_ASPECT_RATIO.getBooleanValue()) {
+    //         return;
+    //     }
+    //     RenderTweaks.renderCover( tickDelta, startTime, tick);
+    // }
+
+
+    
 }

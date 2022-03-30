@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -24,6 +25,7 @@ import fi.dy.masa.tweakeroo.items.ItemList;
 import fi.dy.masa.tweakeroo.mixin.MixinPistonBlock;
 import fi.dy.masa.tweakeroo.renderer.OverlayRenderer;
 import fi.dy.masa.tweakeroo.renderer.RenderUtils;
+import fi.dy.masa.tweakeroo.util.IMixinWindow;
 import fi.dy.masa.tweakeroo.util.MiscUtils;
 import fi.dy.masa.tweakeroo.world.FakeChunk;
 import fi.dy.masa.tweakeroo.world.FakeWorld;
@@ -46,6 +48,16 @@ import net.minecraft.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.block.piston.PistonHandler;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.SimpleFramebuffer;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.DiffuseLighting;
+import net.minecraft.client.render.Shader;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.util.Window;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.mob.ShulkerEntity;
 import net.minecraft.item.Item;
@@ -58,6 +70,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.registry.DynamicRegistryManager;
 import net.minecraft.util.registry.Registry;
@@ -90,6 +103,8 @@ public class RenderTweaks {
     public static Selection AREA_SELECTION = new Selection();
 
     public static BlockPos posLookingAt = null;
+
+    public static Framebuffer endframebuffer = new SimpleFramebuffer(1, 1, true, MinecraftClient.IS_SYSTEM_MAC);
 
     public static ConcurrentHashMap<Long, ContainerEntry> CONTAINERCACHE = new ConcurrentHashMap<Long, ContainerEntry>();
     public static ArrayList<ContainerEntry> CONTAINERS_WAITING = new ArrayList<ContainerEntry>();
@@ -204,6 +219,16 @@ public class RenderTweaks {
             }
         }
 
+    }
+
+    public static int getHeightOffsetWithAspectRatio(double r, int w, int currentHeight) {
+        if (!FeatureToggle.TWEAK_STANDARD_ASPECT_RATIO.getBooleanValue()) {
+            return 0;
+        }
+
+        int newHeight = (int) ((double) w / r);
+
+        return Math.max(0, (currentHeight - newHeight));
     }
 
     public static void render(MatrixStack matrices) {
@@ -676,12 +701,12 @@ public class RenderTweaks {
         }
 
         switch ((ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue()) {
-        case NONE:
-            return true;
-        case WHITELIST:
-            return SELECTIVE_WHITELIST.containsKey(key);
-        case BLACKLIST:
-            return !SELECTIVE_BLACKLIST.containsKey(key);
+            case NONE:
+                return true;
+            case WHITELIST:
+                return SELECTIVE_WHITELIST.containsKey(key);
+            case BLACKLIST:
+                return !SELECTIVE_BLACKLIST.containsKey(key);
         }
 
         return false;
@@ -708,7 +733,8 @@ public class RenderTweaks {
                     fakeWorld.setBlockState(pos, Blocks.AIR.getDefaultState());
                     mc.world.setBlockState(pos, originalState,
                             Block.NOTIFY_ALL | Block.FORCE_STATE | PASSTHROUGH);
-                    if (be != null) mc.world.addBlockEntity(be);
+                    if (be != null)
+                        mc.world.addBlockEntity(be);
                 }
             }
         } else {
@@ -720,11 +746,13 @@ public class RenderTweaks {
             }
         }
     }
+
     public static void reloadSelective() {
-        MinecraftClient.getInstance().execute(()->{
+        MinecraftClient.getInstance().execute(() -> {
             reloadSelectiveInternal();
         });
     }
+
     public static void reloadSelectiveInternal() {
 
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -1134,4 +1162,46 @@ public class RenderTweaks {
         fakeWorld.getChunkManager().unloadChunk(x, z);
     }
 
+    /*
+        This piece of code makes sure that the unused top portion of the screen stays black.
+        Normally this is not an issue, but when tweak_standard_aspect_ratio is used with voxelmap,
+        it will lead to periodic light flashes in that area, which is super annoying.
+
+        This piece of code is cannabalized from the code that draws framebuffers.
+        It took a days work for me to figure this out.
+    */
+    public static void renderCoverEnd() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        Window window = mc.getWindow();
+        int yOffset = ((IMixinWindow) (Object) window).getYOffset();
+        if (yOffset == 0)
+            return;
+
+            
+        int x = 0;
+        int y = window.getFramebufferHeight();
+        int width = window.getFramebufferWidth();
+        int height = yOffset;
+
+        endframebuffer.setClearColor(0, 0, 0, 1);
+        endframebuffer.clear(false);
+        RenderSystem.assertThread(RenderSystem::isOnGameThreadOrInit);
+        GlStateManager._viewport(x, y, width, height);
+
+        Matrix4f matrix4f = Matrix4f.projectionMatrix((float) width, (float) (-height), 1000.0F, 3000.0F);
+        RenderSystem.setProjectionMatrix(matrix4f);
+        float f = (float) width;
+        float g = (float) height;
+        float h = (float) endframebuffer.viewportWidth / (float) endframebuffer.textureWidth;
+        float i = (float) endframebuffer.viewportHeight / (float) endframebuffer.textureHeight;
+        Tessellator tessellator = RenderSystem.renderThreadTesselator();
+        BufferBuilder bufferBuilder = tessellator.getBuffer();
+        bufferBuilder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+        bufferBuilder.vertex(0.0D, (double) g, 0.0D).texture(0.0F, 0.0F).color(255, 255, 255, 255).next();
+        bufferBuilder.vertex((double) f, (double) g, 0.0D).texture(h, 0.0F).color(255, 255, 255, 255).next();
+        bufferBuilder.vertex((double) f, 0.0D, 0.0D).texture(h, i).color(255, 255, 255, 255).next();
+        bufferBuilder.vertex(0.0D, 0.0D, 0.0D).texture(0.0F, i).color(255, 255, 255, 255).next();
+        bufferBuilder.end();
+        BufferRenderer.postDraw(bufferBuilder);
+    }
 }

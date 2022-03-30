@@ -1,6 +1,7 @@
 package fi.dy.masa.tweakeroo.mixin;
 
 import javax.annotation.Nullable;
+import javax.xml.catalog.CatalogFeatures.Feature;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -131,6 +132,16 @@ public abstract class MixinMinecraftClient implements IMinecraftClientInvoker
         return PlacementTweaks.onProcessRightClickBlock(controller, player, world, hand, hitResult);
     }
 
+    @Inject(method = "render(Z)V", at= @At(
+        value = "INVOKE",
+        target = "Lnet/minecraft/client/util/Window;swapBuffers()V"
+    ))
+    private void afterRenderEnd(CallbackInfo ci) {
+        if (FeatureToggle.TWEAK_STANDARD_ASPECT_RATIO.getBooleanValue()) {
+            RenderTweaks.renderCoverEnd();
+        }
+    }
+
     @Inject(method = "handleInputEvents", at = @At("HEAD"))
     private void onProcessKeybindsPre(CallbackInfo ci)
     {
@@ -154,4 +165,6 @@ public abstract class MixinMinecraftClient implements IMinecraftClientInvoker
             }
         }
     }
+
+
 }

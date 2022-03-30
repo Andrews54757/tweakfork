@@ -108,10 +108,11 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_CONTAINER_SCAN            ("tweakContainerScan",                  false, "",    "Scans containers"),
     TWEAK_CONTAINER_SCAN_COUNTS     ("tweakContainerScanCounts",            false, "",    "Enables/disables container scan counts rendering"),
     TWEAK_AFK_TIMEOUT               ("tweakAfkTimeout",                     false, "",    "When enabled, will perform an action after afking for a while"),
-    TWEAK_NOTEBLOCK_EDIT            ("tweakNoteblockEdit",                  false, "",    "Turns on noteblock editing mode");
-
+    TWEAK_NOTEBLOCK_EDIT            ("tweakNoteblockEdit",                  false, "",    "Turns on noteblock editing mode"),
+    TWEAK_STANDARD_ASPECT_RATIO     ("tweakStandardAspectRatio",            false, "",    "Forces 16:9 aspect ratio for the game.\n#macbook-gang.");
+    
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
-
+    
     private final String name;
     private final String comment;
     private final String prettyName;
