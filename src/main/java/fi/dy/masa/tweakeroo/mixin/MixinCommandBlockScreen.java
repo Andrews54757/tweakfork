@@ -14,9 +14,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.text.LiteralText;
 import net.minecraft.text.Text;
-import net.minecraft.text.TranslatableText;
 import net.minecraft.util.math.BlockPos;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -58,11 +56,11 @@ public abstract class MixinCommandBlockScreen extends AbstractCommandBlockScreen
             this.doneButton.y = y;
             this.cancelButton.y = y;
 
-            Text str = new TranslatableText("tweakeroo.gui.button.misc.command_block.set_name");
+            Text str = Text.translatable("tweakeroo.gui.button.misc.command_block.set_name");
             int widthBtn = this.textRenderer.getWidth(str) + 10;
 
             y = 181;
-            this.textFieldName = new TextFieldWidget(this.textRenderer, x1, y, width, 20, new LiteralText(""));
+            this.textFieldName = new TextFieldWidget(this.textRenderer, x1, y, width, 20, Text.of(""));
             this.textFieldName.setText(this.blockEntity.getCommandExecutor().getCustomName().getString());
             this.addSelectableChild(this.textFieldName);
             final TextFieldWidget tf = this.textFieldName;
@@ -72,14 +70,14 @@ public abstract class MixinCommandBlockScreen extends AbstractCommandBlockScreen
             {
                 String name = tf.getText();
                 name = String.format("{\"CustomName\":\"{\\\"text\\\":\\\"%s\\\"}\"}", name);
-                this.client.player.sendChatMessage(String.format("/data merge block %d %d %d %s", pos.getX(), pos.getY(), pos.getZ(), name));
+                this.client.player.sendCommand(String.format("data merge block %d %d %d %s", pos.getX(), pos.getY(), pos.getZ(), name));
             }));
 
             this.updateExecValue = MiscUtils.getUpdateExec(this.blockEntity);
 
-            Text strOn = new TranslatableText("tweakeroo.gui.button.misc.command_block.update_execution.on");
-            Text strOff = new TranslatableText("tweakeroo.gui.button.misc.command_block.update_execution.off");
-            Text strLooping = new TranslatableText("tweakeroo.gui.button.misc.command_block.update_execution.looping");
+            Text strOn = Text.translatable("tweakeroo.gui.button.misc.command_block.update_execution.on");
+            Text strOff = Text.translatable("tweakeroo.gui.button.misc.command_block.update_execution.off");
+            Text strLooping = Text.translatable("tweakeroo.gui.button.misc.command_block.update_execution.looping");
             width = this.textRenderer.getWidth(strOff) + 10;
 
             this.buttonUpdateExec = CyclingButtonWidget.onOffBuilder(strOn, strOff)
@@ -89,9 +87,9 @@ public abstract class MixinCommandBlockScreen extends AbstractCommandBlockScreen
                 this.updateExecValue = val;
                 MiscUtils.setUpdateExec(this.blockEntity, this.updateExecValue);
 
-                String cmd = String.format("/data merge block %d %d %d {\"UpdateLastExecution\":%s}",
+                String cmd = String.format("data merge block %d %d %d {\"UpdateLastExecution\":%s}",
                         pos.getX(), pos.getY(), pos.getZ(), this.updateExecValue ? "1b" : "0b");
-                this.client.player.sendChatMessage(cmd);
+                this.client.player.sendCommand(cmd);
             });
 
             this.addDrawableChild(this.buttonUpdateExec);
@@ -151,6 +149,6 @@ public abstract class MixinCommandBlockScreen extends AbstractCommandBlockScreen
         String translationKey = "tweakeroo.gui.button.misc.command_block.update_execution";
         boolean isCurrentlyOn = ! updateExecValue;
         String strStatus = "malilib.gui.label_colored." + (isCurrentlyOn ? "on" : "off");
-        return new TranslatableText(translationKey, StringUtils.translate(strStatus));
+        return Text.translatable(translationKey, StringUtils.translate(strStatus));
     }
 }

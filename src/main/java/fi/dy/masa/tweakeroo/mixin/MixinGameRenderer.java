@@ -13,9 +13,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.AbstractDecorationEntity;
@@ -29,9 +29,9 @@ import fi.dy.masa.tweakeroo.util.MiscUtils;
 @Mixin(value = GameRenderer.class, priority = 1001)
 public abstract class MixinGameRenderer
 {
-    @Shadow
-    @Final
-    private MinecraftClient client;
+    @Shadow @Final private MinecraftClient client;
+
+    @Shadow protected abstract void bobView(MatrixStack matrices, float tickDelta);
 
     private float realYaw;
     private float realPitch;
@@ -45,16 +45,14 @@ public abstract class MixinGameRenderer
         }
     }
 
-    @Redirect(method = "renderWorld", require = 0, at = @At(value = "FIELD",
-              target = "Lnet/minecraft/client/option/GameOptions;bobView:Z"))
-    private boolean disableWorldViewBob(GameOptions options)
+    @Redirect(method = "renderWorld", require = 0, at = @At(value = "INVOKE",
+              target = "Lnet/minecraft/client/render/GameRenderer;bobView(Lnet/minecraft/client/util/math/MatrixStack;F)V"))
+    private void disableWorldViewBob(GameRenderer renderer, MatrixStack matrices, float tickDelta)
     {
-        if (Configs.Disable.DISABLE_WORLD_VIEW_BOB.getBooleanValue())
+        if (Configs.Disable.DISABLE_WORLD_VIEW_BOB.getBooleanValue() == false)
         {
-            return false;
+            this.bobView(matrices, tickDelta);
         }
-
-        return options.bobView;
     }
 
     @Inject(method = "getFov", at = @At("HEAD"), cancellable = true)
@@ -66,7 +64,7 @@ public abstract class MixinGameRenderer
         }
         else if (FeatureToggle.TWEAK_FREE_CAMERA.getBooleanValue())
         {
-            cir.setReturnValue(this.client.options.fov);
+            cir.setReturnValue((double) this.client.options.getFov().getValue());
         }
     }
 

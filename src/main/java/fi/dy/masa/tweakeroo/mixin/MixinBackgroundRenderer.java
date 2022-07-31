@@ -1,5 +1,6 @@
 package fi.dy.masa.tweakeroo.mixin;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
@@ -7,7 +8,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BackgroundRenderer;
 import net.minecraft.client.render.Camera;
@@ -21,10 +21,10 @@ public abstract class MixinBackgroundRenderer
     private static boolean wasLava;
 
     @ModifyConstant(
-            method = "applyFog(Lnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/BackgroundRenderer$FogType;FZ)V",
+            method = "applyFog",
             slice = @Slice(
                             from = @At(value = "FIELD", target = "Lnet/minecraft/entity/effect/StatusEffects;FIRE_RESISTANCE:Lnet/minecraft/entity/effect/StatusEffect;"),
-                            to   = @At(value = "FIELD", target = "Lnet/minecraft/entity/effect/StatusEffects;BLINDNESS:Lnet/minecraft/entity/effect/StatusEffect;")),
+                            to   = @At(value = "FIELD", target = "Lnet/minecraft/client/render/CameraSubmersionType;POWDER_SNOW:Lnet/minecraft/client/render/CameraSubmersionType;")),
             constant = @Constant(floatValue = 0.25f),
             require = 0)
     private static float reduceLavaFogStart(float original)
@@ -40,10 +40,10 @@ public abstract class MixinBackgroundRenderer
     }
 
     @ModifyConstant(
-            method = "applyFog(Lnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/BackgroundRenderer$FogType;FZ)V",
+            method = "applyFog",
             slice = @Slice(
                     from = @At(value = "FIELD", target = "Lnet/minecraft/entity/effect/StatusEffects;FIRE_RESISTANCE:Lnet/minecraft/entity/effect/StatusEffect;"),
-                    to   = @At(value = "FIELD", target = "Lnet/minecraft/entity/effect/StatusEffects;BLINDNESS:Lnet/minecraft/entity/effect/StatusEffect;")),
+                    to   = @At(value = "FIELD", target = "Lnet/minecraft/client/render/CameraSubmersionType;POWDER_SNOW:Lnet/minecraft/client/render/CameraSubmersionType;")),
             constant = { @Constant(floatValue = 1.0f), @Constant(floatValue = 3.0f)},
             require = 0)
     private static float reduceLavaFogEnd(float original)
@@ -90,7 +90,7 @@ public abstract class MixinBackgroundRenderer
     }
     */
 
-    @Inject(method = "applyFog(Lnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/BackgroundRenderer$FogType;FZ)V",
+    @Inject(method = "applyFog",
             require = 0,
             at = @At(value = "INVOKE", remap = false,
                      target = "Lcom/mojang/blaze3d/systems/RenderSystem;setShaderFogEnd(F)V",
@@ -98,7 +98,7 @@ public abstract class MixinBackgroundRenderer
     private static void disableRenderDistanceFog(
             Camera camera,
             BackgroundRenderer.FogType fogType,
-            float viewDistance, boolean thickFog, CallbackInfo ci)
+            float viewDistance, boolean thickFog, float tickDelta, CallbackInfo ci)
     {
         if (Configs.Disable.DISABLE_RENDER_DISTANCE_FOG.getBooleanValue())
         {

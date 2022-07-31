@@ -1003,7 +1003,7 @@ public class PlacementTweaks
         {
             //System.out.printf("processRightClickBlockWrapper() PLACE @ %s, side: %s, hit: %s\n", pos, side, hitVec);
             BlockHitResult context = new BlockHitResult(hitVecIn, sideIn, posIn, false);
-            result = controller.interactBlock(player, world, hand, context);
+            result = controller.interactBlock(player, hand, context);
         }
 
         if (result == ActionResult.SUCCESS)
@@ -1024,7 +1024,7 @@ public class PlacementTweaks
             {
                 //System.out.printf("processRightClickBlockWrapper() after-clicker - i: %d, pos: %s, side: %s, hitVec: %s\n", i, pos, side, hitVec);
                 BlockHitResult context = new BlockHitResult(hitVecIn, sideIn, posPlacement, false);
-                result = controller.interactBlock(player, world, hand, context);
+                result = controller.interactBlock(player, hand, context);
             }
         }
 

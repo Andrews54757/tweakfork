@@ -26,6 +26,7 @@ import fi.dy.masa.tweakeroo.gui.GuiItemList;
 import fi.dy.masa.tweakeroo.mixin.IMixinAbstractBlock;
 import fi.dy.masa.tweakeroo.tweaks.PlacementTweaks;
 import fi.dy.masa.tweakeroo.tweaks.RenderTweaks;
+import fi.dy.masa.tweakeroo.mixin.IMixinSimpleOption;
 import fi.dy.masa.tweakeroo.util.CameraEntity;
 import fi.dy.masa.tweakeroo.util.CreativeExtraItems;
 import fi.dy.masa.tweakeroo.util.InventoryUtils;
@@ -160,31 +161,43 @@ public class Callbacks
         public FeatureCallbackGamma(FeatureToggle feature, MinecraftClient mc)
         {
             this.mc = mc;
+            double gamma = this.mc.options.getGamma().getValue();
 
-            if (this.mc.options.gamma <= 1.0F)
+            if (gamma <= 1.0F)
             {
-                Configs.Internal.GAMMA_VALUE_ORIGINAL.setDoubleValue(this.mc.options.gamma);
+                Configs.Internal.GAMMA_VALUE_ORIGINAL.setDoubleValue(gamma);
             }
 
             // If the feature is enabled on game launch, apply it here
             if (feature.getBooleanValue())
             {
-                this.mc.options.gamma = Configs.Generic.GAMMA_OVERRIDE_VALUE.getDoubleValue();
+                this.applyValue(Configs.Generic.GAMMA_OVERRIDE_VALUE.getDoubleValue());
             }
         }
 
         @Override
         public void onValueChanged(IConfigBoolean config)
         {
+            double gamma;
+
             if (config.getBooleanValue())
             {
-                Configs.Internal.GAMMA_VALUE_ORIGINAL.setDoubleValue(this.mc.options.gamma);
-                this.mc.options.gamma = Configs.Generic.GAMMA_OVERRIDE_VALUE.getDoubleValue();
+                Configs.Internal.GAMMA_VALUE_ORIGINAL.setDoubleValue(this.mc.options.getGamma().getValue());
+                gamma = Configs.Generic.GAMMA_OVERRIDE_VALUE.getDoubleValue();
             }
             else
             {
-                this.mc.options.gamma = (float) Configs.Internal.GAMMA_VALUE_ORIGINAL.getDoubleValue();
+                gamma = Configs.Internal.GAMMA_VALUE_ORIGINAL.getDoubleValue();
             }
+
+            this.applyValue(gamma);
+        }
+
+        private void applyValue(double gamma)
+        {
+            @SuppressWarnings("unchecked")
+            IMixinSimpleOption<Double> opt = (IMixinSimpleOption<Double>) (Object) this.mc.options.getGamma();
+            opt.tweakeroo_setValueWithoutCheck(gamma);
         }
     }
 
