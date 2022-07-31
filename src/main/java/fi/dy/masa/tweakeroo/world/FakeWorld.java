@@ -2,7 +2,6 @@ package fi.dy.masa.tweakeroo.world;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.function.Supplier;
 
 import fi.dy.masa.tweakeroo.Reference;
@@ -18,13 +17,14 @@ import net.minecraft.recipe.RecipeManager;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
-import net.minecraft.tag.BlockTags;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.profiler.Profiler;
+import net.minecraft.util.registry.BuiltinRegistries;
 import net.minecraft.util.registry.DynamicRegistryManager;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.util.registry.RegistryEntry;
@@ -37,25 +37,26 @@ import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 import net.minecraft.world.dimension.DimensionType;
+import net.minecraft.world.dimension.DimensionTypes;
 import net.minecraft.world.entity.EntityLookup;
 import net.minecraft.world.event.GameEvent;
+import net.minecraft.world.event.GameEvent.Emitter;
 import net.minecraft.world.tick.QueryableTickScheduler;
 
 public class FakeWorld extends World
 {
-    private static final RegistryKey<World> REGISTRY_KEY = RegistryKey.of(Registry.WORLD_KEY, new Identifier(Reference.MOD_ID, "fake_world"));
-    public static final DimensionType DIMENSIONTYPE = DimensionType.create(OptionalLong.of(6000L), false, false, false, false, 1.0,
-    false, false, false, false, false, -64, 384, 384, BlockTags.INFINIBURN_END,
-    DimensionType.OVERWORLD_ID, 0.0F);
+    private static final RegistryKey<World> REGISTRY_KEY = RegistryKey.of(Registry.WORLD_KEY, new Identifier(Reference.MOD_ID, "selective_world"));
 
     private final MinecraftClient mc;
     private final FakeChunkManager chunkManager;
 
     private DynamicRegistryManager registryManager;
-
-    public FakeWorld(DynamicRegistryManager registry, MutableWorldProperties mutableWorldProperties, DimensionType dimensionType, Supplier<Profiler> supplier, int loadDistance)
+    public static final RegistryEntry<DimensionType> DIMENSIONTYPE = BuiltinRegistries.DIMENSION_TYPE.entryOf(DimensionTypes.OVERWORLD);
+    
+    public FakeWorld(DynamicRegistryManager registry, MutableWorldProperties mutableWorldProperties, RegistryEntry<DimensionType> dimensionType, Supplier<Profiler> supplier, int loadDistance)
     {
-        super(mutableWorldProperties, REGISTRY_KEY, RegistryEntry.of(dimensionType), supplier, true, true, 0L);
+        //MutableWorldProperties properties, RegistryKey<World> registryRef, RegistryEntry<DimensionType> dimension, Supplier<Profiler> profiler, boolean isClient, boolean debugWorld, long seed, int maxChainedNeighborUpdates
+        super(mutableWorldProperties, REGISTRY_KEY, dimensionType, supplier, true, true, 0L, 1000000);
         registryManager = registry;
         this.mc = MinecraftClient.getInstance();
         this.chunkManager = new FakeChunkManager(this, loadDistance);
@@ -324,5 +325,25 @@ public class FakeWorld extends World
     public RegistryEntry<Biome> getGeneratorStoredBiome(int var1, int var2, int var3) {
         // TODO Auto-generated method stub
         return null;
+    }
+
+    @Override
+    public void emitGameEvent(GameEvent var1, Vec3d var2, Emitter var3) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void playSound(PlayerEntity var1, double var2, double var4, double var6, SoundEvent var8, SoundCategory var9,
+            float var10, float var11, long var12) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void playSoundFromEntity(PlayerEntity var1, Entity var2, SoundEvent var3, SoundCategory var4, float var5,
+            float var6, long var7) {
+        // TODO Auto-generated method stub
+        
     }
 }

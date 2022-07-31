@@ -212,7 +212,7 @@ public class RenderTweaks {
                     CONTAINERS_WAITING.add(entry);
                     BlockHitResult hitResult = new BlockHitResult(new Vec3d(0.5, 0.5, 0.5), Direction.UP, entry.pos,
                             false);
-                    mc.interactionManager.interactBlock(mc.player, mc.world, Hand.MAIN_HAND, hitResult);
+                    mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hitResult);
 
                 }
             }
@@ -961,7 +961,7 @@ public class RenderTweaks {
     public static Object scanContainers() {
         MinecraftClient mc = MinecraftClient.getInstance();
 
-        int vd = mc.options.viewDistance;
+        int vd = mc.options.getViewDistance().getValue();
         ChunkPos cp = mc.player.getChunkPos();
         for (int j = -vd; j < vd; ++j) {
             for (int l = -vd; l < vd; ++l) {
@@ -1200,7 +1200,6 @@ public class RenderTweaks {
         bufferBuilder.vertex((double) f, (double) g, 0.0D).texture(h, 0.0F).color(255, 255, 255, 255).next();
         bufferBuilder.vertex((double) f, 0.0D, 0.0D).texture(h, i).color(255, 255, 255, 255).next();
         bufferBuilder.vertex(0.0D, 0.0D, 0.0D).texture(0.0F, i).color(255, 255, 255, 255).next();
-        bufferBuilder.end();
-        BufferRenderer.postDraw(bufferBuilder);
+        BufferRenderer.drawWithoutShader(bufferBuilder.end());
     }
 }

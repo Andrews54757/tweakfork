@@ -15,6 +15,7 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.gen.chunk.FlatChunkGeneratorLayer;
@@ -32,11 +33,10 @@ import fi.dy.masa.tweakeroo.util.EntityRestriction;
 import fi.dy.masa.tweakeroo.util.IMinecraftClientInvoker;
 import fi.dy.masa.tweakeroo.util.InventoryUtils;
 import fi.dy.masa.tweakeroo.util.PotionRestriction;
-import net.minecraft.client.gui.screen.SaveLevelScreen;
+import net.minecraft.client.gui.screen.MessageScreen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen;
 import net.minecraft.client.realms.gui.screen.RealmsMainScreen;
-import net.minecraft.text.TranslatableText;
 
 public class MiscTweaks
 {
@@ -128,7 +128,7 @@ public class MiscTweaks
         
         mc.world.disconnect();
         if (flag) {
-            mc.disconnect(new SaveLevelScreen(new TranslatableText("menu.savingLevel")));
+            mc.disconnect(new MessageScreen(Text.translatable("menu.savingLevel")));
         } else {
             mc.disconnect();
         }
@@ -150,8 +150,8 @@ public class MiscTweaks
             disconnectGracefully(mc);
             return;
         }
-
-        mc.player.sendChatMessage(action);
+        // TODO: make it work again. broke due to chat reporting shit
+        //  mc.player.sendChatMessage(action);
     }
 
     private static void checkAfk(MinecraftClient mc) {
