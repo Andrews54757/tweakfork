@@ -1,5 +1,6 @@
 package fi.dy.masa.tweakeroo.renderer;
 
+import net.minecraft.client.font.TextRenderer;
 import org.joml.Matrix4f;
 
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -107,7 +108,6 @@ public class OverlayRenderer
 			matrixStack.translate((float)(x - camX), (float)(y - camY), (float)(z - camZ));
             matrixStack.multiplyPositionMatrix(new Matrix4f().rotation(camera.getRotation()));
             matrixStack.scale(FONT_SIZE, -FONT_SIZE, FONT_SIZE);
-			RenderSystem.enableTexture();
 			RenderSystem.disableDepthTest();  // visibleThroughObjects
 			RenderSystem.depthMask(true);
             matrixStack.scale(-1.0F, 1.0F, 1.0F);
@@ -117,7 +117,7 @@ public class OverlayRenderer
 			float renderX = -client.textRenderer.getWidth(text) * 0.5F;
 			float renderY = client.textRenderer.getWrappedLinesHeight(text, Integer.MAX_VALUE) * (-0.5F + 1.25F * line);
 			Matrix4f matrix4f = AffineTransformation.identity().getMatrix();
-			client.textRenderer.draw(text, renderX, renderY, color, false, matrix4f, immediate, true, 0, 0xF000F0);
+			client.textRenderer.draw(text, renderX, renderY, color, false, matrix4f, immediate, TextRenderer.TextLayerType.SEE_THROUGH, 0, 0xF000F0);
 			immediate.draw();
 
 			RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);

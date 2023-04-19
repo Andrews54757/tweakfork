@@ -247,7 +247,7 @@ public class RenderTweaks {
             RenderSystem.disableDepthTest();
             // RenderSystem.disableLighting();
             // RenderSystem.depthMask(false);
-            RenderSystem.disableTexture();
+            // RenderSystem.disableTexture();
             // RenderSystem.alphaFunc(GL11.GL_GREATER, 0.01F);
 
             RenderSystem.enablePolygonOffset();
@@ -262,7 +262,7 @@ public class RenderTweaks {
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
             matrices.pop();
-            RenderSystem.enableTexture();
+            // RenderSystem.enableTexture();
 
         }
 
@@ -274,7 +274,7 @@ public class RenderTweaks {
             RenderSystem.disableDepthTest();
             // RenderSystem.disableLighting();
             RenderSystem.depthMask(false);
-            RenderSystem.disableTexture();
+            // RenderSystem.disableTexture();
             // RenderSystem.alphaFunc(GL11.GL_GREATER, 0.01F);
 
             RenderSystem.enablePolygonOffset();
@@ -287,7 +287,7 @@ public class RenderTweaks {
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
             matrices.pop();
-            RenderSystem.enableTexture();
+            // RenderSystem.enableTexture();
 
         }
         if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()
@@ -302,7 +302,7 @@ public class RenderTweaks {
             RenderSystem.disableDepthTest();
             // RenderSystem.disableLighting();
             // RenderSystem.depthMask(false);
-            RenderSystem.disableTexture();
+            // RenderSystem.disableTexture();
             // RenderSystem.alphaFunc(GL11.GL_GREATER, 0.01F);
 
             RenderSystem.enablePolygonOffset();
@@ -321,7 +321,7 @@ public class RenderTweaks {
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
             matrices.pop();
-            RenderSystem.enableTexture();
+            // RenderSystem.enableTexture();
             RenderSystem.depthMask(true);
 
         }

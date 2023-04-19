@@ -63,7 +63,7 @@ public class FakeWorld extends World
     )
     {
         //MutableWorldProperties properties, RegistryKey<World> registryRef, RegistryEntry<DimensionType> dimension, Supplier<Profiler> profiler, boolean isClient, boolean debugWorld, long seed, int maxChainedNeighborUpdates
-        super(properties, REGISTRY_KEY, dimension, supplier, true, false, 0L, 0);
+        super(properties, REGISTRY_KEY, registryManager, dimension, supplier, true, false, 0L, 0);
         this.mc = MinecraftClient.getInstance();
         this.registryManager = registryManager;
         this.chunkManager = new FakeChunkManager(this, loadDistance);
