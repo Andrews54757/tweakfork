@@ -118,7 +118,6 @@ public class RenderHandler implements IRenderer
             BlockHitResult hitResult = (BlockHitResult) mc.crosshairTarget;
             RenderSystem.depthMask(false);
             RenderSystem.disableCull();
-            RenderSystem.disableTexture();
             RenderSystem.disableDepthTest();
 
             fi.dy.masa.malilib.render.RenderUtils.setupBlend();
@@ -134,7 +133,6 @@ public class RenderHandler implements IRenderer
                     matrixStack,
                     mc);
 
-            RenderSystem.enableTexture();
             RenderSystem.enableDepthTest();
             RenderSystem.disableBlend();
             RenderSystem.enableCull();

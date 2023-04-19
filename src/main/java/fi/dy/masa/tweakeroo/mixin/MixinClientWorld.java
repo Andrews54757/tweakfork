@@ -12,6 +12,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.math.BlockPos;
@@ -20,16 +21,19 @@ import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.World;
 import net.minecraft.world.dimension.DimensionType;
 
+import fi.dy.masa.tweakeroo.config.Configs;
+
 @Mixin(ClientWorld.class)
 public abstract class MixinClientWorld extends World
 {
     private MixinClientWorld(MutableWorldProperties properties,
                              RegistryKey<World> registryRef,
+                             DynamicRegistryManager registryManager,
                              RegistryEntry<DimensionType> dimension,
                              Supplier<Profiler> supplier,
                              boolean isClient, boolean debugWorld, long seed, int maxChainedNeighborUpdates)
     {
-        super(properties, registryRef, dimension, supplier, isClient, debugWorld, seed, maxChainedNeighborUpdates);
+        super(properties, registryRef, registryManager, dimension, supplier, isClient, debugWorld, seed, maxChainedNeighborUpdates);
     }
 
     @Inject(method = "tickEntity", at = @At("HEAD"), cancellable = true)
@@ -61,7 +65,7 @@ public abstract class MixinClientWorld extends World
             }
         }
     }
-    
+
     */
 
     @Inject(method = "scheduleBlockRerenderIfNeeded", at = @At("HEAD"), cancellable = true)
