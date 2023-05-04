@@ -57,6 +57,9 @@ public class ItemList
     public boolean isEntrySelected(ItemListEntry entry) {
         return this.selectedItems.contains(entry.getItem());
     }
+    public boolean isItemSelected(Item item) {
+        return this.selectedItems.contains(item);
+    }
     public Collection<ItemListEntry> getItemsAll()
     {
         return this.itemListAll.values();

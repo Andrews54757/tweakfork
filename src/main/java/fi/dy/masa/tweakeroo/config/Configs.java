@@ -127,8 +127,8 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger       AFK_TIMEOUT                         = new ConfigInteger     ("afkTimeout", 2400, 200, 200000, "Number of ticks for AFK timeout");
         public static final ConfigString        AFK_ACTION                          = new ConfigString      ("afkAction", "/disconnect", "The action to perform on AFK timeout. /disconnect is default.");
         public static final ConfigBoolean       NOTE_EDIT_LETTERS                   = new ConfigBoolean     ("noteEditLetters", false, "When enabled, can use letter keys to set noteblock notes");
-       
 
+        public static final ConfigColor         CONTAINER_SCAN_ITEM_HIGHLIGHT_COLOR = new ConfigColor       ("containerScanHighlightColor", "#AC000000", "Set the color that renders behind selected items from containerScan\n(when the feature is enabled)");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
                 CARPET_ACCURATE_PLACEMENT_PROTOCOL,
@@ -221,7 +221,10 @@ public class Configs implements IConfigHandler
                 TOOL_SWITCHABLE_SLOTS,
                 NOTE_EDIT_LETTERS,
                 TOOL_SWITCH_IGNORED_SLOTS,
-                ZOOM_FOV
+                ZOOM_FOV,
+
+                //From Jack
+                CONTAINER_SCAN_ITEM_HIGHLIGHT_COLOR
         );
     }
 

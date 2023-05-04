@@ -104,6 +104,8 @@ public class Callbacks
         Hotkeys.OPEN_ITEM_LIST.getKeybind().setCallback(callbackGeneric);
         Hotkeys.CONTAINER_SCANNER_CLEAR_CACHE.getKeybind().setCallback(callbackGeneric);
 
+
+
         Hotkeys.SKIP_ALL_RENDERING.getKeybind().setCallback(callbackMessage);
         Hotkeys.SKIP_WORLD_RENDERING.getKeybind().setCallback(callbackMessage);
         

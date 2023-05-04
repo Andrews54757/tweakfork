@@ -59,7 +59,9 @@ public class Hotkeys
     public static final ConfigHotkey AREA_SELECTION_REMOVE_FROM_LIST    = new ConfigHotkey("areaSelectionRemoveFromList",       "",     KeybindSettings.PRESS_ALLOWEXTRA, "remove selected blocks from list");
     public static final ConfigHotkey OPEN_ITEM_LIST                     = new ConfigHotkey("openItemList",                      "",     "Opens the item list gui");
     public static final ConfigHotkey CONTAINER_SCANNER_CLEAR_CACHE      = new ConfigHotkey("containerScannerClearCache",        "",     "Clears the container scanner cache");
-   
+
+
+
 
     public static final List<ConfigHotkey> HOTKEY_LIST = ImmutableList.of(
             ACCURATE_BLOCK_PLACEMENT_IN,
