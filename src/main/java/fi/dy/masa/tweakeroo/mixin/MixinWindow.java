@@ -1,11 +1,10 @@
 package fi.dy.masa.tweakeroo.mixin;
 
-import org.spongepowered.asm.mixin.Final;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -22,6 +21,7 @@ import net.minecraft.client.util.Window;
 @Mixin(Window.class)
 public class MixinWindow implements IMixinWindow {
 
+    @Unique
     double targetAspectRatio = 16.0 / 9.0;
 
     @Shadow @Final
@@ -39,32 +39,32 @@ public class MixinWindow implements IMixinWindow {
     @Shadow
     private double scaleFactor;
 
-    @Shadow 
-    private int width;
-    
     @Shadow
-    private int height;
+    private int width;
 
+
+    @Shadow private int height;
+    @Unique
     private int yOffset = 0;
+    @Unique
     private int originalFramebufferHeight = 1;
 
-    // TODO: use invoke
-    @Overwrite
-	private void onFramebufferSizeChanged(long window, int width, int height) {
-		if (window == this.handle) {
-			int i = this.framebufferWidth;
-			int j = this.framebufferHeight;
-			if (width != 0 && height != 0) {
-				this.framebufferWidth = width;
-                this.originalFramebufferHeight = height;
-                this.yOffset = RenderTweaks.getHeightOffsetWithAspectRatio(this.targetAspectRatio, this.framebufferWidth, height);
-				this.framebufferHeight = height - yOffset;
-				if (this.framebufferWidth != i || this.framebufferHeight != j) {
-					this.eventHandler.onResolutionChanged();
-				}
-			}
-		}
-	}
+
+    
+
+
+    @ModifyVariable(method = "onFramebufferSizeChanged", at=@At("HEAD"), ordinal = 1)
+    private int tweakfork$offsetWithAspectRatio(int height2) {
+        this.yOffset = RenderTweaks.getHeightOffsetWithAspectRatio(this.targetAspectRatio, this.framebufferWidth, height2);
+        this.originalFramebufferHeight = height2;
+        return height2 - yOffset;
+    }
+
+
+
+
+
+
 
     @Inject(method = "updateFramebufferSize", at = @At("RETURN"))
 	private void updateFramebufferSizeInject(CallbackInfo ci) {
