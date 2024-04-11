@@ -1,9 +1,6 @@
 package fi.dy.masa.tweakeroo.event;
 
 import com.google.common.collect.ImmutableList;
-
-import net.minecraft.block.BlockState;
-import net.minecraft.block.NoteBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.option.GameOptions;
@@ -12,13 +9,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.Message;
 import fi.dy.masa.malilib.hotkeys.IHotkey;
 import fi.dy.masa.malilib.hotkeys.IKeybindManager;
 import fi.dy.masa.malilib.hotkeys.IKeybindProvider;
@@ -27,21 +20,19 @@ import fi.dy.masa.malilib.hotkeys.IMouseInputHandler;
 import fi.dy.masa.malilib.hotkeys.KeyCallbackAdjustable;
 import fi.dy.masa.malilib.util.GuiUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
-import fi.dy.masa.malilib.util.KeyCodes;
-import fi.dy.masa.malilib.util.PositionUtils;
 import fi.dy.masa.tweakeroo.Reference;
 import fi.dy.masa.tweakeroo.config.Configs;
 import fi.dy.masa.tweakeroo.config.FeatureToggle;
 import fi.dy.masa.tweakeroo.config.Hotkeys;
 import fi.dy.masa.tweakeroo.util.MiscUtils;
 import fi.dy.masa.tweakeroo.util.SnapAimMode;
+import net.minecraft.world.RaycastContext;
 
 public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IMouseInputHandler
 {
     private static final InputHandler INSTANCE = new InputHandler();
     private LeftRight lastSidewaysInput = LeftRight.NONE;
     private ForwardBack lastForwardInput = ForwardBack.NONE;
-    private static int[] NOTEMAP = new int[] { 3, 5, 6, 8, 10, 11, 1 };
 
     private InputHandler()
     {
@@ -90,62 +81,8 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         {
             this.storeLastMovementDirection(keyCode, scanCode, mc);
         }
+
         MiscUtils.checkZoomStatus();
-
-        if (eventKeyState && FeatureToggle.TWEAK_NOTEBLOCK_EDIT.getBooleanValue()) {
-            if (mc.world != null && mc.player != null && !mc.player.isSneaking() && mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
-                BlockHitResult hit = (BlockHitResult)mc.crosshairTarget;
-                BlockState state = mc.world.getBlockState(hit.getBlockPos());
-                if (state.getBlock() instanceof NoteBlock) {
-                    int currentNote = state.get(NoteBlock.NOTE);
-                    int maxNote = 25;
-                    int offset = 0;
-                    if (Configs.Generic.NOTE_PLAY_KEY.getBooleanValue() && Hotkeys.NOTE_PLAY_KEY.getKeybind().getKeys().size() != 0 && keyCode == Hotkeys.NOTE_PLAY_KEY.getKeybind().getKeys().get(0)) {
-                    	offset = 25;
-                    }
-                    else if (keyCode >= KeyCodes.KEY_0 && keyCode <= KeyCodes.KEY_9)
-                    {
-                        offset = MathHelper.clamp(keyCode - KeyCodes.KEY_0, 0, 9);
-                        if (offset == 0) {
-                            offset = (maxNote - currentNote) % maxNote;
-                        } else
-                        if (offset == 1) {
-                            offset = 10;
-                        }
-                    } else if (keyCode == KeyCodes.KEY_MINUS) {
-                        offset = maxNote - 1;
-                    } else if (keyCode == KeyCodes.KEY_EQUAL) {
-                        offset = 1;
-                    } else if (keyCode == KeyCodes.KEY_TAB) {
-                        offset = 12;
-                        if (offset + currentNote >= 25) {
-                            offset += 1;
-                        }
-                        if (currentNote == 24) {
-                        	offset = 1;
-                        }
-                    } else if (Configs.Generic.NOTE_EDIT_LETTERS.getBooleanValue() && keyCode >= KeyCodes.KEY_A && keyCode <= KeyCodes.KEY_G) {
-                        int target = NOTEMAP[MathHelper.clamp(keyCode - KeyCodes.KEY_A, 0, 6)];
-                        
-                        if (target >= currentNote) {
-                            offset = target - currentNote;
-                        } else {
-                            offset = target + (maxNote - currentNote);
-                        }
-                    } else {
-                        return false;
-                    }
-
-                    for (int i = 0; i < offset; i++)
-                    {
-                        BlockHitResult context = new BlockHitResult(new Vec3d(hit.getBlockPos().getX(), hit.getBlockPos().getY(), hit.getBlockPos().getZ()),Direction.NORTH, hit.getBlockPos(), false);
-                        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, context);
-                    }
-                    return true;
-                }
-            }
-        }
-      
 
         return false;
     }
@@ -155,49 +92,28 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
     {
         MinecraftClient mc = MinecraftClient.getInstance();
 
-        // Note block play key
-        if (GuiUtils.getCurrentScreen() == null && mc.player != null && !mc.player.isSneaking() &&
-            eventButtonState && FeatureToggle.TWEAK_NOTEBLOCK_EDIT.getBooleanValue() && Configs.Generic.NOTE_PLAY_KEY.getBooleanValue() &&
-            Hotkeys.NOTE_PLAY_KEY.getKeybind().getKeys().size() != 0 && eventButton == 100 + Hotkeys.NOTE_PLAY_KEY.getKeybind().getKeys().get(0) &&
-            mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
-        	BlockHitResult hit = (BlockHitResult)mc.crosshairTarget;
-            BlockState state = mc.world.getBlockState(hit.getBlockPos());
-        	if (state.getBlock() instanceof NoteBlock) {
-                int offset = 25;
-                for (int i = 0; i < offset; i++)
-                {
-                    BlockHitResult context = new BlockHitResult(new Vec3d(hit.getBlockPos().getX(), hit.getBlockPos().getY(), hit.getBlockPos().getZ()),Direction.NORTH, hit.getBlockPos(), false);
-                    mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, context);
-                }
-        	}
-        }
-        
-        // Angel Block
-        if (GuiUtils.getCurrentScreen() == null && mc.player != null && mc.player.isCreative() &&
-            eventButtonState && mc.options.useKey.matchesMouse(eventButton) &&
-            FeatureToggle.TWEAK_ANGEL_BLOCK.getBooleanValue() &&
-            mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.MISS)
+        if (mc.world == null || mc.player == null || mc.interactionManager == null || mc.crosshairTarget == null ||
+            GuiUtils.getCurrentScreen() != null)
         {
-            BlockPos posFront = PositionUtils.getPositionInfrontOfEntity(mc.player);
+            return false;
+        }
 
-            if (mc.world.isAir(posFront))
+        if (mc.player.isCreative() && FeatureToggle.TWEAK_ANGEL_BLOCK.getBooleanValue() && eventButtonState &&
+            mc.options.useKey.matchesMouse(eventButton) && mc.crosshairTarget.getType() == HitResult.Type.MISS)
+        {
+            Vec3d eyePos = mc.player.getEyePos();
+            Vec3d rotVec = mc.player.getRotationVec(1.0f);
+
+            Vec3d vec3d = eyePos.add(rotVec.multiply(Configs.Generic.ANGEL_BLOCK_PLACEMENT_DISTANCE.getDoubleValue()));
+            BlockHitResult context = mc.world.raycast(new RaycastContext(eyePos, vec3d, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.SOURCE_ONLY, mc.player));
+
+            for (Hand hand : Hand.values())
             {
-                Direction facing = PositionUtils.getClosestLookingDirection(mc.player).getOpposite();
-                Vec3d hitVec = PositionUtils.getHitVecCenter(posFront, facing);
-                BlockHitResult context = new BlockHitResult(hitVec, facing, posFront, false);
-                ItemStack stack = mc.player.getMainHandStack();
-
+                ItemStack stack = mc.player.getStackInHand(hand);
                 if (stack.isEmpty() == false && stack.getItem() instanceof BlockItem)
                 {
-                    mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, context);
-                    return true;
-                }
-
-                stack = mc.player.getOffHandStack();
-
-                if (stack.isEmpty() == false && stack.getItem() instanceof BlockItem)
-                {
-                    mc.interactionManager.interactBlock(mc.player, Hand.OFF_HAND, context);
+                    mc.interactionManager.interactBlock(mc.player, hand, context);
+                    mc.player.swingHand(hand);
                     return true;
                 }
             }
@@ -209,42 +125,13 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
     @Override
     public boolean onMouseScroll(int mouseX, int mouseY, double dWheel)
     {
-    	MinecraftClient mc = MinecraftClient.getInstance();
-    	
-    	// Not in a GUI
+        // Not in a GUI
         if (GuiUtils.getCurrentScreen() == null && dWheel != 0)
         {
             String preGreen = GuiBase.TXT_GREEN;
             String rst = GuiBase.TXT_RST;
-            
-            if (FeatureToggle.TWEAK_NOTEBLOCK_EDIT.getBooleanValue() && Configs.Generic.NOTE_SCROLL.getBooleanValue())
-            {
-            	if (mc.world != null && mc.player != null && !mc.player.isSneaking() &&
-            		mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
-                    BlockHitResult hit = (BlockHitResult)mc.crosshairTarget;
-                    BlockState state = mc.world.getBlockState(hit.getBlockPos());
-                    if (state.getBlock() instanceof NoteBlock) {
-                        int maxNote = 25;
-                        int offset = 0;
-                        if (dWheel < 0) {
-                            offset = maxNote - 1;
-                        } else if (dWheel > 0) {
-                            offset = 1;
-                        } else {
-                            return false;
-                        }
 
-                        for (int i = 0; i < offset; i++)
-                        {
-                            BlockHitResult context = new BlockHitResult(new Vec3d(hit.getBlockPos().getX(), hit.getBlockPos().getY(), hit.getBlockPos().getZ()),Direction.NORTH, hit.getBlockPos(), false);
-                            mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, context);
-                        }
-                        return true;
-                    }
-                }
-            }
-
-            else if (FeatureToggle.TWEAK_HOTBAR_SCROLL.getBooleanValue() && Hotkeys.HOTBAR_SCROLL.getKeybind().isKeybindHeld())
+            if (FeatureToggle.TWEAK_HOTBAR_SCROLL.getBooleanValue() && Hotkeys.HOTBAR_SCROLL.getKeybind().isKeybindHeld())
             {
                 int currentRow = Configs.Internal.HOTBAR_SCROLL_CURRENT_ROW.getIntegerValue();
 
@@ -407,8 +294,7 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
 
     public void handleMovementKeys(Input movement)
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        GameOptions settings = mc.options;
+        GameOptions settings = MinecraftClient.getInstance().options;
 
         if (settings.leftKey.isPressed() && settings.rightKey.isPressed())
         {
