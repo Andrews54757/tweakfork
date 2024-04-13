@@ -40,6 +40,11 @@ public abstract class MixinEntityRenderDispatcher
         {
             cir.setReturnValue(false);
         }
+        
+        if (Configs.Disable.DISABLE_OTHER_PLAYER_RENDERING.getBooleanValue() && isPlayer && !((PlayerEntity)entityIn).isMainPlayer())
+        {
+            cir.setReturnValue(false);
+        }
 
         if (FeatureToggle.TWEAK_RENDER_ALL_ENTITIES.getBooleanValue())
         {

@@ -106,7 +106,6 @@ public class Hotkeys
             TOGGLE_CARPET_AP_PROTOCOL,
             TOGGLE_GRAB_CURSOR,
             TOOL_PICK,
-            ZOOM_ACTIVATE,
             AREA_SELECTION_OFFSET,
             AREA_SELECTION_ADD_TO_LIST,
             AREA_SELECTION_REMOVE_FROM_LIST,
