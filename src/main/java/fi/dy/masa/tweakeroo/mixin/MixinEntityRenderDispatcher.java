@@ -40,6 +40,18 @@ public abstract class MixinEntityRenderDispatcher
         {
             cir.setReturnValue(false);
         }
+        if (Configs.Disable.DISABLE_LIVING_ENTITY_RENDERING.getBooleanValue() && entityIn instanceof LivingEntity)
+        {
+            cir.setReturnValue(false);
+        }
+        if (Configs.Disable.DISABLE_ITEM_ENTITY_RENDERING.getBooleanValue() && entityIn instanceof ItemEntity)
+        {
+            cir.setReturnValue(false);
+        }
+        if (Configs.Disable.DISABLE_OTHER_PLAYER_RENDERING.getBooleanValue() && isPlayer && !((PlayerEntity)entityIn).isMainPlayer())
+        {
+            cir.setReturnValue(false);
+        }
         
         if (Configs.Disable.DISABLE_OTHER_PLAYER_RENDERING.getBooleanValue() && isPlayer && !((PlayerEntity)entityIn).isMainPlayer())
         {

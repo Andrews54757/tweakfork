@@ -41,6 +41,9 @@ Tweakfork is a fork of Masa/Maruhon's mod [Tweakeroo](https://github.com/maruoho
 22. afkIgnoreInput -> if true, afk timeout ignores all player input and the timer never resets.
 23. noteblockScroll -> use the scrollwheel to change noteblock pitch<
 34. notePlayKey -> play the current noteblock pitch using the key specified under `Hotkeys -> notePlayKey`
+35. disableOtherPlayerRendering -> Disables rendering of all players except yourself (only for multiplayer).
+36. disableLivingEntityRendering -> Disables all living entity rendering (all entities with a health bar).
+37. disableItemEntityRendering -> Disables item entity rendering.
 
 
 *Using Selectively Visible Blocks for the [brewer](https://www.youtube.com/watch?v=1_jSkyq-WOs) video*
