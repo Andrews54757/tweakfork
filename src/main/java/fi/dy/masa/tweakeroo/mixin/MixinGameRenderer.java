@@ -80,6 +80,7 @@ public abstract class MixinGameRenderer
         // render view/camera entity, which would then also ray trace from the camera point of view.
         if (FeatureToggle.TWEAK_FREE_CAMERA.getBooleanValue() &&
             Configs.Generic.FREE_CAMERA_PLAYER_INPUTS.getBooleanValue() &&
+            !FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue() &&
             mc.player != null)
         {
             return mc.player;
