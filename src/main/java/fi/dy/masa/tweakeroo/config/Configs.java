@@ -357,6 +357,7 @@ public class Configs implements IConfigHandler
         public static final ConfigBooleanHotkeyed       DISABLE_OFFHAND_RENDERING       = new ConfigBooleanHotkeyed("disableOffhandRendering",              false, "", "Disables the offhand item from getting rendered");
         public static final ConfigBooleanHotkeyed       DISABLE_OTHER_PLAYER_RENDERING  = new ConfigBooleanHotkeyed("disableOtherPlayerRendering",          false, "", "Disables rendering of all players except yourself");
         public static final ConfigBooleanHotkeyed       DISABLE_PARTICLES               = new ConfigBooleanHotkeyed("disableParticles",                     false, "", "Disables all particles");
+        public static final ConfigBooleanHotkeyed       DISABLE_PHANTOM_SPAWNING        = new ConfigBooleanClient  ("disablePhantomSpawning",               false, "", "Disables phantom spawning");
         public static final ConfigBooleanHotkeyed       DISABLE_PORTAL_GUI_CLOSING      = new ConfigBooleanHotkeyed("disablePortalGuiClosing",              false, "", "If enabled, then you can still open GUIs while in a Nether Portal");
         public static final ConfigBooleanHotkeyed       DISABLE_RAIN_EFFECTS            = new ConfigBooleanHotkeyed("disableRainEffects",                   false, "", "Disables rain rendering and sounds");
         public static final ConfigBooleanHotkeyed       DISABLE_RENDERING_SCAFFOLDING   = new ConfigBooleanHotkeyed("disableRenderingScaffolding",          false, "", "Disables rendering of Scaffolding Blocks");
@@ -407,8 +408,9 @@ public class Configs implements IConfigHandler
                 DISABLE_NETHER_PORTAL_SOUND,
                 DISABLE_OBSERVER,
                 DISABLE_OFFHAND_RENDERING,
-                DISABLE_PARTICLES,
                 DISABLE_OTHER_PLAYER_RENDERING,
+                DISABLE_PARTICLES,
+                DISABLE_PHANTOM_SPAWNING,
                 DISABLE_PORTAL_GUI_CLOSING,
                 DISABLE_RAIN_EFFECTS,
                 DISABLE_RENDERING_SCAFFOLDING,

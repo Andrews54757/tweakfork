@@ -44,6 +44,7 @@ Tweakfork is a fork of Masa/Maruhon's mod [Tweakeroo](https://github.com/maruoho
 35. disableOtherPlayerRendering -> Disables rendering of all players except yourself (only for multiplayer).
 36. disableLivingEntityRendering -> Disables all living entity rendering (all entities with a health bar).
 37. disableItemEntityRendering -> Disables item entity rendering.
+38. disablePhantomSpawning -> Disables phantom spawning globally. Only works in singleplayer/server side.
 
 
 *Using Selectively Visible Blocks for the [brewer](https://www.youtube.com/watch?v=1_jSkyq-WOs) video*
