@@ -63,6 +63,7 @@
         "MixinParticleManager",
         "MixinPistonBlock",
         "MixinPistonBlock_eventTracker",
+        "MixinPhantom",
         "MixinPlayerAbilities",
         "MixinPlayerEntity",
         "MixinPresetsScreen",
