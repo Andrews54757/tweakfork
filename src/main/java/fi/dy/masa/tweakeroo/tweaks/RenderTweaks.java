@@ -112,7 +112,7 @@ public class RenderTweaks {
 
     public static Selection AREA_SELECTION = new Selection();
     public static BlockPos posLookingAt = null;
-    public static Framebuffer endframebuffer = new SimpleFramebuffer(1, 1, true);
+   //public static Framebuffer endframebuffer = new SimpleFramebuffer(1, 1, true);
 
     public static ConcurrentHashMap<Long, ContainerEntry> CONTAINERCACHE = new ConcurrentHashMap<Long, ContainerEntry>();
     public static ArrayList<ContainerEntry> CONTAINERS_WAITING = new ArrayList<ContainerEntry>();
