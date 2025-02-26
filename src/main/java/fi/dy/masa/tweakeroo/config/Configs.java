@@ -503,7 +503,7 @@ public class Configs implements IConfigHandler
 
         if (Files.exists(configFile) && Files.isReadable(configFile))
         {
-            JsonElement element = JsonUtils.parseJsonFileAsPath(configFile);
+            JsonElement element = JsonUtils.parseJsonFile(configFile.toFile());
 
             if (element != null && element.isJsonObject())
             {
