@@ -2,7 +2,6 @@ package fi.dy.masa.tweakeroo.mixin;
 
 import java.util.function.Consumer;
 
-
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -10,11 +9,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import fi.dy.masa.tweakeroo.config.Configs;
-import fi.dy.masa.tweakeroo.config.FeatureToggle;
-import fi.dy.masa.tweakeroo.tweaks.RenderTweaks;
-import fi.dy.masa.tweakeroo.util.WeatherOverrideMode;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
@@ -22,10 +16,16 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
+import fi.dy.masa.tweakeroo.config.Configs;
+import fi.dy.masa.tweakeroo.config.FeatureToggle;
+import fi.dy.masa.tweakeroo.tweaks.RenderTweaks;
+import fi.dy.masa.tweakeroo.util.WeatherOverrideMode;
+
 @Mixin(World.class)
 public abstract class MixinWorld
 {
-    @Shadow @Final
+    @Shadow
+    @Final
     public boolean isClient;
 
     @Inject(method = "tickBlockEntities", at = @At("HEAD"), cancellable = true)
@@ -77,15 +77,20 @@ public abstract class MixinWorld
     }
 
     @Inject(method = "setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;II)Z", at = @At("HEAD"), cancellable = true)
-    private void setBlockStateInject(BlockPos pos, BlockState state, int flags, int maxUpdateDepth, CallbackInfoReturnable<Boolean> ci) {
-        if (!isClient) {
+    private void setBlockStateInject(BlockPos pos, BlockState state, int flags, int maxUpdateDepth, CallbackInfoReturnable<Boolean> ci)
+    {
+        if (!this.isClient)
+        {
             return;
         }
       
-        if (!RenderTweaks.isPositionValidForRendering(pos)) {
-            if ((flags & RenderTweaks.PASSTHROUGH) != 0) {
+        if (!RenderTweaks.isPositionValidForRendering(pos))
+        {
+            if ((flags & RenderTweaks.PASSTHROUGH) != 0)
+            {
                 return;
             }
+
             MinecraftClient mc = MinecraftClient.getInstance();
             RenderTweaks.setFakeBlockState(mc.world, pos, state, null);
             ci.setReturnValue(false);

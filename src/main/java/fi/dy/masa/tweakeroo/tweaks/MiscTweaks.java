@@ -4,9 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
+
+import org.jetbrains.annotations.NotNull;
+
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -17,6 +21,7 @@ import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Identifier;
 import net.minecraft.world.gen.chunk.FlatChunkGeneratorLayer;
 import fi.dy.masa.malilib.config.IConfigBoolean;
@@ -225,7 +230,7 @@ public class MiscTweaks
         Tweakeroo.renderCountXPOrbs = 0;
     }
 
-    private static int doPeriodicClicks(MinecraftClient mc)
+    private static void doPeriodicClicks(MinecraftClient mc)
     {
         if (GuiUtils.getCurrentScreen() == null)
         {
@@ -250,7 +255,6 @@ public class MiscTweaks
             KEY_STATE_ATTACK.reset();
             KEY_STATE_USE.reset();
         }
-        return KEY_STATE_ATTACK.durationCounter;
     }
 
     private static void handlePeriodicClicks(
@@ -340,14 +344,14 @@ public class MiscTweaks
     private static boolean potionWarningShouldInclude(StatusEffectInstance effect)
     {
         return effect.isAmbient() == false &&
-               (effect.getEffectType().isBeneficial() ||
+               (effect.getEffectType().value().isBeneficial() ||
                Configs.Generic.POTION_WARNING_BENEFICIAL_ONLY.getBooleanValue() == false) &&
                effect.getDuration() <= Configs.Generic.POTION_WARNING_THRESHOLD.getIntegerValue() &&
-               POTION_RESTRICTION.isAllowed(effect.getEffectType());
+               effect.getDuration() >= 0 &&
+               POTION_RESTRICTION.isAllowed(effect.getEffectType().value());
     }
 
-    @Nullable
-    public static FlatChunkGeneratorLayer[] parseBlockString(String blockString)
+    public static @NotNull List<FlatChunkGeneratorLayer> parseBlockString(String blockString)
     {
         List<FlatChunkGeneratorLayer> list = new ArrayList<>();
         String[] strings = blockString.split(",");
@@ -369,7 +373,7 @@ public class MiscTweaks
             thicknessSum += layer.getThickness();
         }
 
-        return list.toArray(new FlatChunkGeneratorLayer[list.size()]);
+        return list;
     }
 
     @Nullable
@@ -386,7 +390,7 @@ public class MiscTweaks
             }
             catch (NumberFormatException e)
             {
-                Tweakeroo.logger.error("Error while parsing flat world string => {}", e.getMessage());
+                Tweakeroo.LOGGER.error("Error while parsing flat world string => {}", e.getMessage());
                 return null;
             }
         }
@@ -405,21 +409,20 @@ public class MiscTweaks
         }
         catch (Exception e)
         {
-            Tweakeroo.logger.error("Error while parsing flat world string => {}", e.getMessage());
+            Tweakeroo.LOGGER.error("Error while parsing flat world string => {}", e.getMessage());
             return null;
         }
 
         if (block == null)
         {
-            Tweakeroo.logger.error("Error while parsing flat world string => Unknown block, {}", strings[strings.length - 1]);
+            Tweakeroo.LOGGER.error("Error while parsing flat world string => Unknown block, {}", strings[strings.length - 1]);
             return null;
         }
         else
         {
-            FlatChunkGeneratorLayer layer = new FlatChunkGeneratorLayer(finalThickness, block);
             // FIXME 1.17 is this just not needed anymore?
             //layer.setStartY(startY);
-            return layer;
+            return new FlatChunkGeneratorLayer(finalThickness, block);
         }
     }
 
@@ -428,8 +431,15 @@ public class MiscTweaks
     {
         try
         {
-            Identifier identifier = new Identifier(name);
-            return Registries.BLOCK.getOrEmpty(identifier).orElse(null);
+            //return Registries.BLOCK.getOrEmpty(identifier).orElse(null);
+            Optional<RegistryEntry.Reference<Block>> opt = Registries.BLOCK.getEntry(Identifier.tryParse(name));
+
+            if (opt.isPresent())
+            {
+                return opt.get().value();
+            }
+
+            return null;
         }
         catch (Exception e)
         {

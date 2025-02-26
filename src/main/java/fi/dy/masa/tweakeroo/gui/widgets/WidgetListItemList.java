@@ -16,7 +16,6 @@ import fi.dy.masa.tweakeroo.gui.Icons;
 import fi.dy.masa.tweakeroo.items.ItemListEntry;
 import fi.dy.masa.tweakeroo.items.ItemListSorter;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 

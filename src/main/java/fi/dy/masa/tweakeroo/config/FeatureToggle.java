@@ -14,96 +14,100 @@ import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.hotkeys.KeybindSettings;
 import fi.dy.masa.malilib.interfaces.IValueChangeCallback;
 import fi.dy.masa.malilib.util.StringUtils;
+import fi.dy.masa.tweakeroo.Reference;
 import fi.dy.masa.tweakeroo.Tweakeroo;
 
 public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfigBoolean>
 {
     STACK_FLEXIBLE                  ("stackFlexible",                       false, "",    "If enabled, then flexible block placement rotation\nand offsets can be set independantly\ndespite holding both hotkeys"),
-    TWEAK_ACCURATE_BLOCK_PLACEMENT  ("tweakAccurateBlockPlacement",         false, "",    "Enables a simpler version of Flexible placement, similar to\nthe Carpet mod, so basically either facing into or out\nfrom the block face clicked on."),
-    TWEAK_AFTER_CLICKER             ("tweakAfterClicker",                   false, "",    KeybindSettings.INGAME_BOTH, "Enables a \"after clicker\" tweak, which does automatic right\nclicks on the just-placed block.\nUseful for example for Repeaters (setting the delay).\nTo quickly adjust the value, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_AIM_LOCK                  ("tweakAimLock",                        false, "",    "Enables an aim lock, locking the yaw and pitch rotations\nto the current values.\nThis is separate from the snap aim lock,\nwhich locks them to the snapped value.\nThis allows locking them \"freely\" to the current value."),
-    TWEAK_ANGEL_BLOCK               ("tweakAngelBlock",                     false, "",    "Enables an \"Angel Block\" tweak, which allows\nplacing blocks in mid-air in Creative mode"),
-    TWEAK_BLOCK_REACH_OVERRIDE      ("tweakBlockReachOverride",             false, "",    "Overrides the block reach distance with\nthe one set in Generic -> blockReachDistance"),
-    TWEAK_BLOCK_TYPE_BREAK_RESTRICTION("tweakBlockTypeBreakRestriction",    false, "",    "Restricts which blocks you are able to break (manually).\nSee the corresponding 'blockBreakRestriction*' configs in the Lists category."),
-    TWEAK_BREAKING_GRID             ("tweakBreakingGrid",                   false, "",    KeybindSettings.INGAME_BOTH, "When enabled, you can only break blocks in\na grid pattern, with a configurable interval.\nTo quickly adjust the interval, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_BREAKING_RESTRICTION      ("tweakBreakingRestriction",            false, "",    "Enables the Breaking Restriction mode\n  (Plane, Layer, Face, Column, Line, Diagonal).\nBasically only allows you to break blocks\nin those patterns, while holding down the attack key."),
-    TWEAK_CHAT_BACKGROUND_COLOR     ("tweakChatBackgroundColor",            false, "",    "Overrides the default chat background color\nwith the one from Generics -> 'chatBackgroundColor'"),
-    TWEAK_CHAT_PERSISTENT_TEXT      ("tweakChatPersistentText",             false, "",    "Stores the text from the chat input text field\nand restores it when the chat is opened again"),
-    TWEAK_CHAT_TIMESTAMP            ("tweakChatTimestamp",                  false, "",    "Adds timestamps to chat messages"),
-    TWEAK_COMMAND_BLOCK_EXTRA_FIELDS("tweakCommandBlockExtraFields",        false, "",    "Adds extra fields to the Command Block GUI, for settings\nthe name of the command block, and seeing the stats results"),
+    TWEAK_ACCURATE_BLOCK_PLACEMENT  ("tweakAccurateBlockPlacement",         false, ""),
+    TWEAK_AFTER_CLICKER             ("tweakAfterClicker",                   false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_AIM_LOCK                  ("tweakAimLock",                        false, ""),
+    TWEAK_ANGEL_BLOCK               ("tweakAngelBlock",                     false, ""),
+    TWEAK_AREA_SELECTOR             ("tweakAreaSelector",                   false, ""),
+    TWEAK_AUTO_SWITCH_ELYTRA        ("tweakAutoSwitchElytra",               false, ""),
+    TWEAK_BLOCK_REACH_OVERRIDE      ("tweakBlockReachOverride",             false, true,  ""),
+    TWEAK_BLOCK_TYPE_BREAK_RESTRICTION("tweakBlockTypeBreakRestriction",    false, ""),
+    TWEAK_BREAKING_GRID             ("tweakBreakingGrid",                   false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_BREAKING_RESTRICTION      ("tweakBreakingRestriction",            false, ""),
+    TWEAK_BUNDLE_DISPLAY            ("tweakBundleDisplay",                  false, ""),
+    TWEAK_CHAT_BACKGROUND_COLOR     ("tweakChatBackgroundColor",            false, ""),
+    TWEAK_CHAT_PERSISTENT_TEXT      ("tweakChatPersistentText",             false, ""),
+    TWEAK_CHAT_TIMESTAMP            ("tweakChatTimestamp",                  false, ""),
+    TWEAK_COMMAND_BLOCK_EXTRA_FIELDS("tweakCommandBlockExtraFields",        false, ""),
     // TODO 1.19.3+
-    //TWEAK_CREATIVE_EXTRA_ITEMS      ("tweakCreativeExtraItems",             false, "",    "Adds custom items to item groups.\nSee Lists -> 'creativeExtraItems' to control which items are added to the groups.\nNote: Currently these will be added to the Transportation group\n(because it has the elast items), but in the future\nthe groups will be configurable per added item"),
+    //TWEAK_CREATIVE_EXTRA_ITEMS      ("tweakCreativeExtraItems",             false, ""),
     // TODO/FIXME 1.19+ the mixin needs an access widener now
-    //TWEAK_CUSTOM_FLAT_PRESETS       ("tweakCustomFlatPresets",              false, "",    "Allows adding custom flat world presets to the list.\nThe presets are defined in Lists -> flatWorldPresets"),
-    TWEAK_CUSTOM_FLY_DECELERATION   ("tweakCustomFlyDeceleration",          false, "",    "Allows changing the fly deceleration in creative or spectator mode.\nThis is mainly meant for faster deceleration ie. less \"glide\"\nwhen releasing the movement keys.\nSee Generic -> flyDecelerationRampValue"),
-    TWEAK_CUSTOM_INVENTORY_GUI_SCALE("tweakCustomInventoryScreenScale",     false, "",    "Allows using a custom GUI scale for any inventory screen.\nSee Generic -> §ecustomInventoryGuiScale§r for the scale value"),
-    TWEAK_ELYTRA_CAMERA             ("tweakElytraCamera",                   false, "",    "Allows locking the real player rotations while holding the 'elytraCamera' activation key.\nThe controls will then only affect the separate 'camera rotations' for the rendering/camera.\nMeant for things like looking down/around while elytra flying nice and straight."),
-    TWEAK_ENTITY_TYPE_ATTACK_RESTRICTION("tweakEntityTypeAttackRestriction",false, "",    "Restricts which entities you are able to attack (manually).\nSee the corresponding 'entityAttackRestriction*' configs in the Lists category."),
-    TWEAK_SHULKERBOX_STACKING       ("tweakEmptyShulkerBoxesStack",         false, true, "",    "Enables empty Shulker Boxes stacking up to 64.\nNOTE: They will also stack inside inventories!\nOn servers this will cause desyncs/glitches\nunless the server has a mod that does the same.\nIn single player this changes shulker box based system behaviour."),
-    TWEAK_SHULKERBOX_STACK_GROUND   ("tweakEmptyShulkerBoxesStackOnGround", false, true, "",    "Enables empty Shulker Boxes stacking up to 64\nwhen as items on the ground"),
-    TWEAK_EXPLOSION_REDUCED_PARTICLES ("tweakExplosionReducedParticles",    false, "",    "If enabled, then all explosion particles will use the\nEXPLOSION_NORMAL particle instead of possibly\nthe EXPLOSION_LARGE or EXPLOSION_HUGE particles"),
-    TWEAK_F3_CURSOR                 ("tweakF3Cursor",                       false, "",    "Enables always rendering the F3 screen cursor"),
-    TWEAK_FAKE_SNEAKING             ("tweakFakeSneaking",                   false, "",    "Enables \"fake sneaking\" ie. prevents you from falling from edges\nwithout slowing down the movement speed"),
-    TWEAK_FAKE_SNEAK_PLACEMENT      ("tweakFakeSneakPlacement",             false, "",    "This tweak offsets the click position to the adjacent air block\nfrom the block that you actually click on.\nThis basically allows you to place blocks against blocks\nthat have a click action, such as opening inventory GUIs,\nwithout having to sneak. Note that this doesn't not actually\nfake sneaking in any way, just the apparent effect is similar."),
-    TWEAK_FAST_BLOCK_PLACEMENT      ("tweakFastBlockPlacement",             false, "",    "Enables fast/convenient block placement when moving\nthe cursor over new blocks"),
-    TWEAK_FAST_LEFT_CLICK           ("tweakFastLeftClick",                  false, "",    "Enables automatic fast left clicking while holding down\nthe attack button (left click).\nThe number of clicks per tick is set in the Generic configs."),
-    TWEAK_FAST_RIGHT_CLICK          ("tweakFastRightClick",                 false, "",    "Enables automatic fast right clicking while holding down\nthe use button (right click).\nThe number of clicks per tick is set in the Generic configs."),
-    TWEAK_FILL_CLONE_LIMIT          ("tweakFillCloneLimit",                 false, true, "",    "Enables overriding the /fill and /clone command\nblock limits in single player.\nThe new limit can be set in the Generic configs,\nin the 'fillCloneLimit' config value"),
-    TWEAK_FLY_SPEED                 ("tweakFlySpeed",                       false, "",    KeybindSettings.INGAME_BOTH, "Enables overriding the fly speed in creative or spectator mode\nand using some presets for it"),
-    TWEAK_FLEXIBLE_BLOCK_PLACEMENT  ("tweakFlexibleBlockPlacement",         false, "",    "Enables placing blocks in different orientations\nor with an offset, while holding down the\nhotkeys for those modes."),
-    TWEAK_FREE_CAMERA               ("tweakFreeCamera",                     false, "",    "Enables a free camera mode, similar to spectator mode,\nbut where the player will remain in place where\nyou first activate the free camera mode"),
-    TWEAK_GAMMA_OVERRIDE            ("tweakGammaOverride",                  false, "",    "Overrides the video settings gamma value with\nthe one set in the Generic configs"),
-    TWEAK_HAND_RESTOCK              ("tweakHandRestock",                    false, "",    "Enables swapping a new stack to the main or the offhand\nwhen the previous stack runs out"),
-    TWEAK_HANGABLE_ENTITY_BYPASS    ("tweakHangableEntityBypass",           false, "",    "Allows not targeting hangable entities (Item Frames and Paintings).\nThe Generic -> hangableEntityBypassInverse option can be used to control\nwhether you must be sneaking or not sneaking to be able to target the entity."),
-    TWEAK_HOLD_ATTACK               ("tweakHoldAttack",                     false, "",    "Emulates holding down the attack button"),
-    TWEAK_HOLD_USE                  ("tweakHoldUse",                        false, "",    "Emulates holding down the use button"),
-    TWEAK_HOTBAR_SCROLL             ("tweakHotbarScroll",                   false, "",    "Enables the hotbar swapping via scrolling feature"),
-    TWEAK_HOTBAR_SLOT_CYCLE         ("tweakHotbarSlotCycle",                false, "",    KeybindSettings.INGAME_BOTH, "Enables cycling the selected hotbar slot after each placed\nblock, up to the set max slot number.\nTo quickly adjust the value, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_HOTBAR_SLOT_RANDOMIZER    ("tweakHotbarSlotRandomizer",           false, "",    KeybindSettings.INGAME_BOTH, "Enables randomizing the selected hotbar slot after each placed\nblock, up to the set max slot number.\nTo quickly adjust the value, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_HOTBAR_SWAP               ("tweakHotbarSwap",                     false, "",    "Enables the hotbar swapping via hotkeys feature"),
-    TWEAK_INVENTORY_PREVIEW         ("tweakInventoryPreview",               false, true, "",    "Enables an inventory preview while having the cursor over\na block or an entity with an inventory and holding down\nthe configured hotkey."),
-    TWEAK_ITEM_UNSTACKING_PROTECTION("tweakItemUnstackingProtection",       false, "",    "If enabled, then items configured in Lists -> unstackingItems\nwon't be allowed to spill out when using.\nThis is meant for example to prevent throwing buckets\ninto lava when filling them."),
-    TWEAK_LAVA_VISIBILITY           ("tweakLavaVisibility",                 false, "",    "If enabled, then the level of Respiration and Aqua Affinity enchantments,\nand having the Fire Resistance effect active,\nwill greatly increase the visibility under lava."),
-    TWEAK_MAP_PREVIEW               ("tweakMapPreview",                     false, "",    "If enabled, then holding shift over maps in an inventory\nwill render a preview of the map"),
-    TWEAK_MOVEMENT_KEYS             ("tweakMovementKeysLast",               false, "",    "If enabled, then opposite movement keys won't cancel each other,\nbut instead the last pressed key is the active input."),
-    TWEAK_PERIODIC_ATTACK           ("tweakPeriodicAttack",                 false, "",    "Enables periodic attacks (left clicks)\nConfigure the interval in Generic -> periodicAttackInterval"),
-    TWEAK_PERIODIC_USE              ("tweakPeriodicUse",                    false, "",    "Enables periodic uses (right clicks)\nConfigure the interval in Generic -> periodicUseInterval"),
-    TWEAK_PERIODIC_HOLD_ATTACK      ("tweakPeriodicHoldAttack",             false, "",    "Enables periodically holding attack for a configurable amount of time.\nConfigure the interval in Generic -> periodicHoldAttackInterval\nand the duration in periodicHoldAttackDuration\n§6Note: You should not use the normal hold attack\n§6or the periodic attack at the same time"),
-    TWEAK_PERIODIC_HOLD_USE         ("tweakPeriodicHoldUse",                false, "",    "Enables periodically holding use for a configurable amount of time.\nConfigure the interval in Generic -> periodicHoldUseInterval\nand the duration in periodicHoldUseDuration\\n§6Note: You should not use the normal hold use\n§6or the periodic use at the same time"),
-    TWEAK_PERMANENT_SNEAK           ("tweakPermanentSneak",                 false, "",    "If enabled, the player will be sneaking the entire time"),
-    TWEAK_PERMANENT_SPRINT          ("tweakPermanentSprint",                false, "",    "If enabled, the player will be always sprinting when moving forward"),
-    TWEAK_PLACEMENT_GRID            ("tweakPlacementGrid",                  false, "",    KeybindSettings.INGAME_BOTH, "When enabled, you can only place blocks in\na grid pattern, with a configurable interval.\nTo quickly adjust the value, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_PLACEMENT_LIMIT           ("tweakPlacementLimit",                 false, "",    KeybindSettings.INGAME_BOTH, "When enabled, you can only place a set number\nof blocks per use/right click.\nTo quickly adjust the value, scroll while\nholding down the tweak toggle keybind."),
-    TWEAK_PLACEMENT_RESTRICTION     ("tweakPlacementRestriction",           false, "",    "Enables the Placement Restriction mode\n  (Plane, Layer, Face, Column, Line, Diagonal)"),
-    TWEAK_PLACEMENT_REST_FIRST      ("tweakPlacementRestrictionFirst",      false, "",    "Restricts block placement so that you can only\nplace blocks against the same block type\nyou first clicked on"),
-    TWEAK_PLACEMENT_REST_HAND       ("tweakPlacementRestrictionHand",       false, "",    "Restricts block placement so that you can only\nplace blocks against the same block type\nyou are holding in your hand"),
-    TWEAK_PLAYER_INVENTORY_PEEK     ("tweakPlayerInventoryPeek",            false, "",    "Enables a player inventory peek/preview, while holding the\nconfigured hotkey key for it."),
-    TWEAK_POTION_WARNING            ("tweakPotionWarning",                  false, "",    "Prints a warning message to the hotbar when\nnon-ambient potion effects are about to run out"),
-    TWEAK_PRINT_DEATH_COORDINATES   ("tweakPrintDeathCoordinates",          false, "",    "Enables printing the player's coordinates to chat on death.\nThis feature is originally from usefulmod by nessie."),
-    TWEAK_PICK_BEFORE_PLACE         ("tweakPickBeforePlace",                false, "",    "If enabled, then before each block placement, the same block\nis switched to hand that you are placing against"),
-    TWEAK_PLAYER_LIST_ALWAYS_ON     ("tweakPlayerListAlwaysVisible",        false, "",    "If enabled, then the player list is always rendered without\nhaving to hold down the key (tab by default)"),
-    TWEAK_RENDER_EDGE_CHUNKS        ("tweakRenderEdgeChunks",               false, "",    "Allows the edge-most client-loaded chunks to render.\nVanilla doesn't allow rendering chunks that don't have\nall the adjacent chunks loaded, meaning that the edge-most chunk\nof the client's loaded won't render in vanilla.\n§lThis is also very helpful in the Free Camera mode!§r"),
-    TWEAK_RENDER_INVISIBLE_ENTITIES ("tweakRenderInvisibleEntities",        false, "",    "When enabled, invisible entities are rendered like\nthey would be in spectator mode."),
-    TWEAK_RENDER_ALL_ENTITIES       ("tweakRenderAllEntities",              false, "",    "When enabled, all entities are rendered."),
-    TWEAK_RENDER_LIMIT_ENTITIES     ("tweakRenderLimitEntities",            false, "",    "Enables limiting the number of certain types of entities\nto render per frame. Currently XP Orbs and Item entities\nare supported, see Generic configs for the limits."),
-    TWEAK_REPAIR_MODE               ("tweakRepairMode",                     false, "",    "If enabled, then fully repaired items held in hand will\nbe swapped to damaged items that have Mending on them."),
-    TWEAK_SCULK_PULSE_LENGTH        ("tweakSculkPulseLength",               false, true, "",    "Allows modifying the Sculk Sensor pulse length. Set the pulse length in Generic -> sculkSensorPulseLength"),
-    TWEAK_SHULKERBOX_DISPLAY        ("tweakShulkerBoxDisplay",              false, "",    "Enables the Shulker Box contents display when hovering\nover them in an inventory and holding shift"),
-    TWEAK_SIGN_COPY                 ("tweakSignCopy",                       false, "",    "When enabled, placed signs will use the text from\nthe previously placed sign.\nCan be combined with tweakNoSignGui to quickly place copies\nof a sign, by enabling that tweak after making the first sign."),
-    TWEAK_SNAP_AIM                  ("tweakSnapAim",                        false, "",    KeybindSettings.INGAME_BOTH, "Enabled a snap aim tweak, to make the player face to pre-set exact yaw rotations"),
-    TWEAK_SNAP_AIM_LOCK             ("tweakSnapAimLock",                    false, "",    "Enables a snap aim lock, locking the yaw and/or pitch rotations\nto the currently snapped value"),
-    TWEAK_SNEAK_1_15_2              ("tweakSneak_1.15.2",                   false, "",    "Restores the 1.15.2 sneaking behavior"),
-    TWEAK_SPECTATOR_TELEPORT        ("tweakSpectatorTeleport",              false, "",    "Allows spectators to teleport to other spectators.\nThis is originally from usefulmod by nessie."),
-    TWEAK_STRUCTURE_BLOCK_LIMIT     ("tweakStructureBlockLimit",            false, true, "",    "Allows overriding the structure block limit.\nThe new limit is set in Generic -> structureBlockMaxSize"),
-    TWEAK_SWAP_ALMOST_BROKEN_TOOLS  ("tweakSwapAlmostBrokenTools",          false, "",    "If enabled, then any damageable items held in the hand that\nare about to break will be swapped to fresh ones"),
-    TWEAK_TAB_COMPLETE_COORDINATE   ("tweakTabCompleteCoordinate",          false, "",    "If enabled, then tab-completing coordinates while not\nlooking at a block, will use the player's position\ninstead of adding the ~ character."),
-    TWEAK_TOOL_SWITCH               ("tweakToolSwitch",                     false, "",    "Enables automatically switching to an effective tool for the targeted block"),
-    TWEAK_WEAPON_SWITCH             ("tweakWeaponSwitch",                   false, "",    "Enables automatically switching to a weapon for the targeted entity"),
-    TWEAK_Y_MIRROR                  ("tweakYMirror",                        false, "",    "Mirrors the targeted y-position within the block bounds.\nThis is basically for placing slabs or stairs\nin the opposite top/bottom state from normal,\nif you have to place them against another slab for example."),
-    TWEAK_ZOOM                      ("tweakZoom",                           false, "",    KeybindSettings.INGAME_BOTH, "Enables using the zoom hotkey to, well, zoom in"),
-    TWEAK_SELECTIVE_BLOCKS_RENDERING ("tweakSelectiveBlocksRendering",      false, "",    "Enables selectively visible blocks rendering"),
-    TWEAK_SELECTIVE_BLOCKS_RENDER_OUTLINE   ("tweakSelectiveBlocksRenderOutline", false, "",    "Renders an outline over listed blocks"),
-    TWEAK_AREA_SELECTOR             ("tweakAreaSelector",                   false, "",    "Enables the area selector"),
+    //TWEAK_CUSTOM_FLAT_PRESETS       ("tweakCustomFlatPresets",              false, ""),
+    TWEAK_CUSTOM_FLY_DECELERATION   ("tweakCustomFlyDeceleration",          false, ""),
+    TWEAK_CUSTOM_INVENTORY_GUI_SCALE("tweakCustomInventoryScreenScale",     false, ""),
+    TWEAK_ELYTRA_CAMERA             ("tweakElytraCamera",                   false, ""),
+    TWEAK_ENTITY_REACH_OVERRIDE      ("tweakEntityReachOverride",           false, true, ""),
+    TWEAK_ENTITY_TYPE_ATTACK_RESTRICTION("tweakEntityTypeAttackRestriction",false, ""),
+    TWEAK_SHULKERBOX_STACKING       ("tweakEmptyShulkerBoxesStack",         false, true, ""),
+    TWEAK_EXPLOSION_REDUCED_PARTICLES ("tweakExplosionReducedParticles",    false, ""),
+    TWEAK_F3_CURSOR                 ("tweakF3Cursor",                       false, ""),
+    TWEAK_FAKE_SNEAKING             ("tweakFakeSneaking",                   false, ""),
+    TWEAK_FAKE_SNEAK_PLACEMENT      ("tweakFakeSneakPlacement",             false, ""),
+    TWEAK_FAST_BLOCK_PLACEMENT      ("tweakFastBlockPlacement",             false, ""),
+    TWEAK_FAST_LEFT_CLICK           ("tweakFastLeftClick",                  false, ""),
+    TWEAK_FAST_RIGHT_CLICK          ("tweakFastRightClick",                 false, ""),
+    TWEAK_FILL_CLONE_LIMIT          ("tweakFillCloneLimit",                 false, true, ""),
+    TWEAK_FLY_SPEED                 ("tweakFlySpeed",                       false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_FLEXIBLE_BLOCK_PLACEMENT  ("tweakFlexibleBlockPlacement",         false, ""),
+    TWEAK_FREE_CAMERA               ("tweakFreeCamera",                     false, ""),
+    TWEAK_GAMMA_OVERRIDE            ("tweakGammaOverride",                  false, ""),
+    TWEAK_HAND_RESTOCK              ("tweakHandRestock",                    false, ""),
+    TWEAK_HANGABLE_ENTITY_BYPASS    ("tweakHangableEntityBypass",           false, ""),
+    TWEAK_HOLD_ATTACK               ("tweakHoldAttack",                     false, ""),
+    TWEAK_HOLD_USE                  ("tweakHoldUse",                        false, ""),
+    TWEAK_HOTBAR_SCROLL             ("tweakHotbarScroll",                   false, ""),
+    TWEAK_HOTBAR_SLOT_CYCLE         ("tweakHotbarSlotCycle",                false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_HOTBAR_SLOT_RANDOMIZER    ("tweakHotbarSlotRandomizer",           false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_HOTBAR_SWAP               ("tweakHotbarSwap",                     false, ""),
+    TWEAK_INVENTORY_PREVIEW         ("tweakInventoryPreview",               false, true, ""),
+    TWEAK_ITEM_UNSTACKING_PROTECTION("tweakItemUnstackingProtection",       false, ""),
+    TWEAK_LAVA_VISIBILITY           ("tweakLavaVisibility",                 false, ""),
+    TWEAK_MAP_PREVIEW               ("tweakMapPreview",                     false, ""),
+    TWEAK_MOVEMENT_KEYS             ("tweakMovementKeysLast",               false, ""),
+    TWEAK_PERIODIC_ATTACK           ("tweakPeriodicAttack",                 false, ""),
+    TWEAK_PERIODIC_USE              ("tweakPeriodicUse",                    false, ""),
+    TWEAK_PERIODIC_HOLD_ATTACK      ("tweakPeriodicHoldAttack",             false, ""),
+    TWEAK_PERIODIC_HOLD_USE         ("tweakPeriodicHoldUse",                false, ""),
+    TWEAK_PERMANENT_SNEAK           ("tweakPermanentSneak",                 false, ""),
+    TWEAK_PERMANENT_SPRINT          ("tweakPermanentSprint",                false, ""),
+    TWEAK_PLACEMENT_GRID            ("tweakPlacementGrid",                  false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_PLACEMENT_LIMIT           ("tweakPlacementLimit",                 false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_PLACEMENT_RESTRICTION     ("tweakPlacementRestriction",           false, ""),
+    TWEAK_PLACEMENT_REST_FIRST      ("tweakPlacementRestrictionFirst",      false, ""),
+    TWEAK_PLACEMENT_REST_HAND       ("tweakPlacementRestrictionHand",       false, ""),
+    TWEAK_PLAYER_INVENTORY_PEEK     ("tweakPlayerInventoryPeek",            false, ""),
+    TWEAK_POTION_WARNING            ("tweakPotionWarning",                  false, ""),
+    TWEAK_PRINT_DEATH_COORDINATES   ("tweakPrintDeathCoordinates",          false, ""),
+    TWEAK_PICK_BEFORE_PLACE         ("tweakPickBeforePlace",                false, ""),
+    TWEAK_PLAYER_LIST_ALWAYS_ON     ("tweakPlayerListAlwaysVisible",        false, ""),
+    TWEAK_RENDER_EDGE_CHUNKS        ("tweakRenderEdgeChunks",               false, ""),
+    TWEAK_RENDER_INVISIBLE_ENTITIES ("tweakRenderInvisibleEntities",        false, ""),
+    TWEAK_RENDER_LIMIT_ENTITIES     ("tweakRenderLimitEntities",            false, ""),
+    TWEAK_REPAIR_MODE               ("tweakRepairMode",                     false, ""),
+    TWEAK_SCULK_PULSE_LENGTH        ("tweakSculkPulseLength",               false, true, ""),
+    TWEAK_SELECTIVE_BLOCKS_RENDERING        ("tweakSelectiveBlocksRendering",      false, ""),
+    TWEAK_SELECTIVE_BLOCKS_RENDER_OUTLINE   ("tweakSelectiveBlocksRenderOutline",  false, ""),
+    TWEAK_SERVER_DATA_SYNC          ("tweakServerDataSync",                 false, ""),
+    TWEAK_SERVER_DATA_SYNC_BACKUP   ("tweakServerDataSyncBackup",           false, ""),
+    TWEAK_SHULKERBOX_DISPLAY        ("tweakShulkerBoxDisplay",              false, ""),
+    TWEAK_SIGN_COPY                 ("tweakSignCopy",                       false, ""),
+    TWEAK_SNAP_AIM                  ("tweakSnapAim",                        false, "",    KeybindSettings.INGAME_BOTH),
+    TWEAK_SNAP_AIM_LOCK             ("tweakSnapAimLock",                    false, ""),
+    TWEAK_SNEAK_1_15_2              ("tweakSneak_1.15.2",                   false, "","tweakeroo.config.feature_toggle.comment.tweakSneak_1_15_2", "tweakeroo.config.feature_toggle.prettyName.tweakSneak_1_15_2", "tweakeroo.config.feature_toggle.name.tweakSneak_1_15_2"),
+    TWEAK_SPECTATOR_TELEPORT        ("tweakSpectatorTeleport",              false, ""),
+    TWEAK_STRUCTURE_BLOCK_LIMIT     ("tweakStructureBlockLimit",            false, true, ""),
+    TWEAK_SWAP_ALMOST_BROKEN_TOOLS  ("tweakSwapAlmostBrokenTools",          false, ""),
+    TWEAK_TAB_COMPLETE_COORDINATE   ("tweakTabCompleteCoordinate",          false, ""),
+    TWEAK_TOOL_SWITCH               ("tweakToolSwitch",                     false, ""),
+    TWEAK_WEAPON_SWITCH             ("tweakWeaponSwitch",                   false, ""),
+    TWEAK_Y_MIRROR                  ("tweakYMirror",                        false, ""),
+    TWEAK_ZOOM                      ("tweakZoom",                           false, "",    KeybindSettings.INGAME_BOTH),
     TWEAK_DAY_CYCLE_OVERRIDE        ("tweakDayCycleOverride",               false, "",    "Overrides the time of day on the client only"),
     TWEAK_WEATHER_OVERRIDE          ("tweakWeatherOverride",                false, "",    "Overrides the weather on the client only"),
     TWEAK_NO_SNEAK_SLOWDOWN         ("tweakNoSneakSlowdown",                     false, "",    "Disables slowdown when sneaking"),
@@ -112,50 +116,122 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_CONTAINER_SCAN_COUNTS     ("tweakContainerScanCounts",            false, "",    "Enables/disables container scan counts rendering"),
     TWEAK_AFK_TIMEOUT               ("tweakAfkTimeout",                     false, "",    "When enabled, will perform an action after afking for a while"),
     TWEAK_NOTEBLOCK_EDIT            ("tweakNoteblockEdit",                  false, "",    "Turns on noteblock editing mode"),
-    TWEAK_STANDARD_ASPECT_RATIO     ("tweakStandardAspectRatio",            false, "",    "Forces 16:9 aspect ratio for the game.\n#macbook-gang.");
+    TWEAK_STANDARD_ASPECT_RATIO     ("tweakStandardAspectRatio",            false, "",    "Forces 16:9 aspect ratio for the game.\n#macbook-gang.")
+    ;
     
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
+
+    private final static String FEATURE_KEY = Reference.MOD_ID+ ".config.feature_toggle";
     
     private final String name;
-    private final String comment;
-    private final String prettyName;
+    private String comment;
+    private String prettyName;
+    private String translatedName;
     private final IKeybind keybind;
     private final boolean defaultValueBoolean;
     private final boolean singlePlayer;
     private boolean valueBoolean;
     private IValueChangeCallback<IConfigBoolean> callback;
 
+    FeatureToggle(String name, boolean defaultValue, String defaultHotkey)
+    {
+        this(name, defaultValue, false, defaultHotkey, KeybindSettings.DEFAULT,
+                buildTranslateName(name, "comment"),
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
+    }
+
+    FeatureToggle(String name, boolean defaultValue, String defaultHotkey, KeybindSettings settings)
+    {
+        this(name, defaultValue, false, defaultHotkey, settings,
+                buildTranslateName(name, "comment"),
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
+    }
+
+    FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey)
+    {
+        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT,
+                buildTranslateName(name, "comment"),
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
+    }
+
+    FeatureToggle(String name, boolean defaultValue, String defaultHotkey, String comment, String prettyName, String translatedName)
+    {
+        this(name, defaultValue, false, defaultHotkey,
+                comment,
+                prettyName,
+                translatedName);
+    }
+
+    FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, String comment, String prettyName, String translatedName)
+    {
+        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT,
+                comment,
+                prettyName,
+                translatedName);
+    }
+
+    // Backwards Compatible constructors - START
     FeatureToggle(String name, boolean defaultValue, String defaultHotkey, String comment)
     {
-        this(name, defaultValue, false, defaultHotkey, KeybindSettings.DEFAULT, comment);
+        this(name, defaultValue, false, defaultHotkey, KeybindSettings.DEFAULT,
+                comment,
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, String comment)
     {
-        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT, comment);
+        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT,
+                comment,
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, String defaultHotkey, KeybindSettings settings, String comment)
     {
-        this(name, defaultValue, false, defaultHotkey, settings, comment);
+        this(name, defaultValue, false, defaultHotkey, settings,
+                comment,
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, KeybindSettings settings, String comment)
     {
-        this(name, defaultValue, singlePlayer, defaultHotkey, settings, comment, StringUtils.splitCamelCase(name.substring(5)));
+        this(name, defaultValue, singlePlayer, defaultHotkey, settings,
+                comment,
+                buildTranslateName(name, "prettyName"),
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, String defaultHotkey, String comment, String prettyName)
     {
-        this(name, defaultValue, false, defaultHotkey, comment, prettyName);
+        this(name, defaultValue, false, defaultHotkey,
+                comment,
+                prettyName,
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, String comment, String prettyName)
     {
-        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT, comment, prettyName);
+        this(name, defaultValue, singlePlayer, defaultHotkey, KeybindSettings.DEFAULT,
+                comment,
+                prettyName,
+                buildTranslateName(name, "name"));
     }
 
     FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, KeybindSettings settings, String comment, String prettyName)
+    {
+        this(name, defaultValue, singlePlayer, defaultHotkey, settings,
+                comment,
+                prettyName,
+                buildTranslateName(name, "name"));
+    }
+    // Backwards Compatible constructors - END
+
+    FeatureToggle(String name, boolean defaultValue, boolean singlePlayer, String defaultHotkey, KeybindSettings settings, String comment, String prettyName, String translatedName)
     {
         this.name = name;
         this.valueBoolean = defaultValue;
@@ -163,6 +239,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
         this.singlePlayer = singlePlayer;
         this.comment = comment;
         this.prettyName = prettyName;
+        this.translatedName = translatedName;
         this.keybind = KeybindMulti.fromStorageString(defaultHotkey, settings);
         this.keybind.setCallback(new KeyCallbackToggleBooleanConfigWithMessage(this));
     }
@@ -176,17 +253,22 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     @Override
     public String getName()
     {
+        if (this.singlePlayer)
+        {
+            return GuiBase.TXT_GOLD + this.name + GuiBase.TXT_RST;
+        }
+
         return this.name;
     }
 
     @Override
     public String getConfigGuiDisplayName()
     {
-        String name = StringUtils.getTranslatedOrFallback("config.name." + this.getName().toLowerCase(), this.getName());
+        String name = StringUtils.getTranslatedOrFallback(this.translatedName, this.name);
 
         if (this.singlePlayer)
         {
-            return GuiBase.TXT_GOLD + name + GuiBase.TXT_RST;
+            name = GuiBase.TXT_GOLD + name + GuiBase.TXT_RST;
         }
 
         return name;
@@ -195,7 +277,58 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     @Override
     public String getPrettyName()
     {
-        return this.prettyName;
+        return StringUtils.getTranslatedOrFallback(this.prettyName,
+                                                   !this.prettyName.isEmpty() ? this.prettyName : StringUtils.splitCamelCase(this.name.substring(5)));
+    }
+
+    @Override
+    public String getTranslatedName()
+    {
+        String name = StringUtils.getTranslatedOrFallback(this.translatedName, this.name);
+
+        if (this.singlePlayer)
+        {
+            name = GuiBase.TXT_GOLD + name + GuiBase.TXT_RST;
+        }
+
+        return name;
+    }
+
+    @Override
+    public String getComment()
+    {
+        String comment = StringUtils.getTranslatedOrFallback(this.comment, this.comment);
+
+        if (comment != null && this.singlePlayer)
+        {
+            return comment + "\n" + StringUtils.translate("tweakeroo.label.config_comment.single_player_only");
+        }
+
+        //System.out.printf("FeatureToggle#getComment(): comment [%s] // test [%s]\n", this.comment, comment);
+        return comment;
+    }
+
+    @Override
+    public void setPrettyName(String s)
+    {
+        this.prettyName = s;
+    }
+
+    @Override
+    public void setTranslatedName(String s)
+    {
+        this.translatedName = s;
+    }
+
+    @Override
+    public void setComment(String s)
+    {
+        this.comment = s;
+    }
+
+    private static String buildTranslateName(String name, String type)
+    {
+        return FEATURE_KEY + "." + type + "." + name;
     }
 
     @Override
@@ -228,19 +361,6 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     public void setValueChangeCallback(IValueChangeCallback<IConfigBoolean> callback)
     {
         this.callback = callback;
-    }
-
-    @Override
-    public String getComment()
-    {
-        String comment = StringUtils.getTranslatedOrFallback("config.comment." + this.getName().toLowerCase(), this.comment);
-
-        if (comment != null && this.singlePlayer)
-        {
-            return comment + "\n" + StringUtils.translate("tweakeroo.label.config_comment.single_player_only");
-        }
-
-        return comment;
     }
 
     @Override
@@ -308,12 +428,12 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
             }
             else
             {
-                Tweakeroo.logger.warn("Failed to set config value for '{}' from the JSON element '{}'", this.getName(), element);
+                Tweakeroo.LOGGER.warn("Failed to set config value for '{}' from the JSON element '{}'", this.getName(), element);
             }
         }
         catch (Exception e)
         {
-            Tweakeroo.logger.warn("Failed to set config value for '{}' from the JSON element '{}'", this.getName(), element, e);
+            Tweakeroo.LOGGER.warn("Failed to set config value for '{}' from the JSON element '{}'", this.getName(), element, e);
         }
     }
 }

@@ -1,82 +1,175 @@
 package fi.dy.masa.tweakeroo.tweaks;
 
 import javax.annotation.Nullable;
-import net.minecraft.block.BedBlock;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ComparatorBlock;
-import net.minecraft.block.RepeaterBlock;
-import net.minecraft.block.StairsBlock;
-import net.minecraft.block.TrapdoorBlock;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import com.google.common.collect.ImmutableSet;
+import net.minecraft.block.*;
 import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.ComparatorMode;
+import net.minecraft.block.enums.SlabType;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemPlacementContext;
-import net.minecraft.state.property.DirectionProperty;
+import net.minecraft.state.property.EnumProperty;
+import net.minecraft.state.property.Properties;
+import net.minecraft.state.property.Property;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
+import fi.dy.masa.malilib.util.game.BlockUtils;
+import fi.dy.masa.tweakeroo.Tweakeroo;
+import fi.dy.masa.tweakeroo.config.Configs;
+import fi.dy.masa.tweakeroo.data.DataManager;
+import fi.dy.masa.tweakeroo.util.EasyPlacementProtocol;
+
 public class PlacementHandler
 {
-    @Nullable
-    public static BlockState getStateForPlacement(BlockState state, UseContext context)
+    public static final ImmutableSet<Property<?>> WHITELISTED_PROPERTIES = ImmutableSet.of(
+            // BooleanProperty:
+            // INVERTED - DaylightDetector
+            // OPEN - Barrel, Door, FenceGate, Trapdoor
+            // PERSISTENT - Leaves (Disabled)
+            Properties.INVERTED,
+            Properties.OPEN,
+            //Properties.PERSISTENT,
+            //Properties.POWERED,
+            //Properties.LOCKED,
+            //Properties.WATERLOGGED
+            // EnumProperty:
+            // ATTACHMENT - Bells
+            // AXIS - Pillar
+            // BLOCK_HALF - Stairs, Trapdoor
+            // BLOCK_FACE - Button, Grindstone, Lever
+            // CHEST_TYPE - Chest
+            // COMPARATOR_MODE - Comparator
+            // DOOR_HINGE - Door
+            // ORIENTATION - Crafter
+            // RAIL_SHAPE / STRAIGHT_RAIL_SHAPE - Rails
+            // SLAB_TYPE - Slab - PARTIAL ONLY: TOP and BOTTOM, not DOUBLE
+            // STAIR_SHAPE - Stairs (needed to get the correct state, otherwise the player facing would be a factor)
+            // BLOCK_FACE - Button, Grindstone, Lever
+            Properties.ATTACHMENT,
+            Properties.AXIS,
+            Properties.BLOCK_HALF,
+            Properties.BLOCK_FACE,
+            Properties.CHEST_TYPE,
+            Properties.COMPARATOR_MODE,
+            Properties.DOOR_HINGE,
+            Properties.FACING,
+            Properties.HOPPER_FACING,
+            Properties.HORIZONTAL_FACING,
+            Properties.ORIENTATION,
+            Properties.RAIL_SHAPE,
+            Properties.STRAIGHT_RAIL_SHAPE,
+            Properties.SLAB_TYPE,
+            Properties.STAIR_SHAPE,
+            // IntProperty:
+            // BITES - Cake
+            // DELAY - Repeater
+            // NOTE - NoteBlock
+            // ROTATION - Banner, Sign, Skull
+            Properties.BITES,
+            Properties.DELAY,
+            Properties.NOTE,
+            Properties.ROTATION
+    );
+
+    /**
+     * BlackList for Block States.  Entries here will be reset to their default value.
+     */
+    public static final ImmutableSet<Property<?>> BLACKLISTED_PROPERTIES = ImmutableSet.of(
+            Properties.WATERLOGGED,
+            Properties.POWERED
+    );
+
+    public static EasyPlacementProtocol getEffectiveProtocolVersion()
     {
-        Vec3d hitVec = context.getHitVec();
-        @Nullable DirectionProperty property = fi.dy.masa.malilib.util.BlockUtils.getFirstDirectionProperty(state);
-        int x = (int) (hitVec.x - (double) context.getPos().getX());
-        int rawFacingIndex = x & 0xF;
+        EasyPlacementProtocol protocol = (EasyPlacementProtocol) Configs.Generic.ACCURATE_PLACEMENT_PROTOCOL_MODE.getOptionListValue();
 
-        if (rawFacingIndex >= 2 && property != null)
+        if (protocol == EasyPlacementProtocol.AUTO)
         {
-            Direction facingOrig = state.get(property);
-            Direction facing = facingOrig;
-            int decodedFacingIndex = ((x - 2) / 2);
-
-            if (decodedFacingIndex == 6) // the opposite of the normal facing requested
+            if (MinecraftClient.getInstance().isInSingleplayer() || DataManager.getInstance().hasServuxServer())
             {
-                facing = facing.getOpposite();
-            }
-            else if (decodedFacingIndex >= 0 && decodedFacingIndex <= 5)
-            {
-                facing = Direction.byId(decodedFacingIndex);
-
-                if (property.getValues().contains(facing) == false)
-                {
-                    facing = context.getEntity().getHorizontalFacing().getOpposite();
-                }
+                return EasyPlacementProtocol.V3;
             }
 
-            //System.out.printf("plop facing: %s -> %s (raw: %d, dec: %d)\n", facingOrig, facing, rawFacingIndex, decodedFacingIndex);
-
-            if (facing != facingOrig && property.getValues().contains(facing))
+            if (DataManager.getInstance().hasCarpetServer())
             {
-                if (state.getBlock() instanceof BedBlock)
-                {
-                    BlockPos headPos = context.pos.offset(facing);
-                    ItemPlacementContext ctx = context.getItemPlacementContext();
+                return EasyPlacementProtocol.V2;
+            }
 
-                    if (context.getWorld().getBlockState(headPos).canReplace(ctx) == false)
-                    {
-                        return null;
-                    }
-                }
+            return EasyPlacementProtocol.SLAB_ONLY;
+        }
 
-                state = state.with(property, facing);
+        return protocol;
+    }
+
+    @Nullable
+    public static BlockState applyPlacementProtocolToPlacementState(BlockState state, UseContext context)
+    {
+        EasyPlacementProtocol protocol = getEffectiveProtocolVersion();
+
+        if (protocol == EasyPlacementProtocol.V3)
+        {
+            return applyPlacementProtocolV3(state, context);
+        }
+        else if (protocol == EasyPlacementProtocol.V2)
+        {
+            return applyPlacementProtocolV2(state, context);
+        }
+        else
+        {
+            return state;
+        }
+    }
+
+    public static BlockState applyPlacementProtocolV2(BlockState state, UseContext context)
+    {
+        int protocolValue = (int) (context.getHitVec().x - (double) context.getPos().getX()) - 2;
+
+        if (protocolValue < 0)
+        {
+            return state;
+        }
+
+        Optional<EnumProperty<Direction>> property = BlockUtils.getFirstDirectionProperty(state);
+
+        if (property.isPresent())
+        {
+            state = applyDirectionProperty(state, context, property.get(), protocolValue);
+
+            if (state == null)
+            {
+                return null;
+            }
+        }
+        else if (state.contains(Properties.AXIS))
+        {
+            Direction.Axis axis = Direction.Axis.VALUES[((protocolValue >> 1) & 0x3) % 3];
+
+            if (Properties.AXIS.getValues().contains(axis))
+            {
+                state = state.with(Properties.AXIS, axis);
             }
         }
 
-        x &= 0xFFFFFFF0;
+        // Divide by two, and then remove the 4 bits used for the facing
+        protocolValue >>>= 5;
 
-        if (x >= 16)
+        if (protocolValue > 0)
         {
             Block block = state.getBlock();
 
             if (block instanceof RepeaterBlock)
             {
-                Integer delay = (x / 16) + 1;
+                Integer delay = protocolValue;
 
                 if (RepeaterBlock.DELAY.getValues().contains(delay))
                 {
@@ -87,14 +180,188 @@ public class PlacementHandler
             {
                 state = state.with(ComparatorBlock.MODE, ComparatorMode.SUBTRACT);
             }
-            else if (block instanceof TrapdoorBlock)
+        }
+
+        if (state.contains(Properties.BLOCK_HALF))
+        {
+            state = state.with(Properties.BLOCK_HALF, protocolValue > 0 ? BlockHalf.TOP : BlockHalf.BOTTOM);
+        }
+
+        return state;
+    }
+
+    public static <T extends Comparable<T>> BlockState applyPlacementProtocolV3(BlockState state, UseContext context)
+    {
+        int protocolValue = (int) (context.getHitVec().x - (double) context.getPos().getX()) - 2;
+        BlockState oldState = state;
+        //System.out.printf("hit vec.x %s, pos.x: %s\n", context.getHitVec().getX(), context.getPos().getX());
+        //System.out.printf("raw protocol value in: 0x%08X\n", protocolValue);
+
+        if (protocolValue < 0)
+        {
+            return oldState;
+        }
+
+        Optional<EnumProperty<Direction>> property = BlockUtils.getFirstDirectionProperty(state);
+
+        // DirectionProperty - allow all except: VERTICAL_DIRECTION (PointedDripstone)
+        if (property.isPresent() && property.get() != Properties.VERTICAL_DIRECTION)
+        {
+            //System.out.printf("applying: 0x%08X\n", protocolValue);
+            state = applyDirectionProperty(state, context, property.get(), protocolValue);
+
+            if (state == null)
             {
-                state = state.with(TrapdoorBlock.HALF, BlockHalf.TOP);
+                return null;
             }
-            else if (block instanceof StairsBlock && state.get(StairsBlock.HALF) == BlockHalf.BOTTOM)
+
+            if (state.canPlaceAt(context.getWorld(), context.getPos()))
             {
-                state = state.with(StairsBlock.HALF, BlockHalf.TOP);
+                //System.out.printf("validator passed for \"%s\"\n", property.getName());
+                oldState = state;
             }
+            else
+            {
+                //System.out.printf("validator failed for \"%s\"\n", property.getName());
+                state = oldState;
+            }
+
+            // Consume the bits used for the facing
+            protocolValue >>>= 3;
+        }
+        // Consume the lowest unused bit
+        protocolValue >>>= 1;
+
+        List<Property<?>> propList = new ArrayList<>(state.getBlock().getStateManager().getProperties());
+        propList.sort(Comparator.comparing(Property::getName));
+
+        try
+        {
+            for (Property<?> p : propList)
+            {
+                //System.out.printf("[PHv3] check property [%s], whitelisted [%s], blacklisted [%s]\n", p.getName(), WHITELISTED_PROPERTIES.contains(p), BLACKLISTED_PROPERTIES.contains(p));
+
+                if ((property.isPresent() && !property.get().equals(p)) ||
+                    (property.isEmpty()) &&
+                    WHITELISTED_PROPERTIES.contains(p))
+                    //WHITELISTED_PROPERTIES.contains(p) &&
+                    //!BLACKLISTED_PROPERTIES.contains(p))
+
+                /*
+                if (property.isPresent() && property.get().equals(p))
+                {
+                    //System.out.printf("[PHv3] skipping prot val: 0x%08X [Property %s]\n", protocolValue, p.getName());
+                    continue;
+                }
+                else if (WHITELISTED_PROPERTIES.contains(p) &&
+                        !BLACKLISTED_PROPERTIES.contains(p))
+                 */
+                {
+                    @SuppressWarnings("unchecked")
+                    Property<T> prop = (Property<T>) p;
+                    List<T> list = new ArrayList<>(prop.getValues());
+                    list.sort(Comparable::compareTo);
+
+                    int requiredBits = MathHelper.floorLog2(MathHelper.smallestEncompassingPowerOfTwo(list.size()));
+                    int bitMask = ~(0xFFFFFFFF << requiredBits);
+                    int valueIndex = protocolValue & bitMask;
+                    //System.out.printf("trying to apply valInd: %d, bits: %d, prot val: 0x%08X\n", valueIndex, requiredBits, protocolValue);
+
+                    if (valueIndex >= 0 && valueIndex < list.size())
+                    {
+                        T value = list.get(valueIndex);
+
+                        if (state.get(prop).equals(value) == false &&
+                            value != SlabType.DOUBLE) // don't allow duping slabs by forcing a double slab via the protocol
+                        {
+                            //System.out.printf("applying \"%s\": %s\n", prop.getName(), value);
+                            state = state.with(prop, value);
+
+                            if (state.canPlaceAt(context.getWorld(), context.getPos()))
+                            {
+                                //System.out.printf("validator passed for \"%s\"\n", prop.getName());
+                                oldState = state;
+                            }
+                            else
+                            {
+                                //System.out.printf("validator failed for \"%s\"\n", prop.getName());
+                                state = oldState;
+                            }
+                        }
+
+                        protocolValue >>>= requiredBits;
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Tweakeroo.LOGGER.warn("Exception trying to apply placement protocol value", e);
+        }
+
+        // Strip Blacklisted properties, and use the Block's default state.
+        // This needs to be done after the initial loop, or it breaks compatibility
+        for (Property<?> p : BLACKLISTED_PROPERTIES)
+        {
+            if (state.contains(p))
+            {
+                @SuppressWarnings("unchecked")
+                Property<T> prop = (Property<T>) p;
+                BlockState def = state.getBlock().getDefaultState();
+                state = state.with(prop, def.get(prop));
+                //System.out.printf("[PHv3] blacklisted state [%s] found, setting default value\n", prop.getName());
+            }
+        }
+
+        if (state.canPlaceAt(context.getWorld(), context.getPos()))
+        {
+            //System.out.printf("validator passed for \"%s\"\n", state);
+            return state;
+        }
+        else
+        {
+            //System.out.printf("validator failed for \"%s\"\n", state);
+            return null;
+        }
+    }
+
+    private static BlockState applyDirectionProperty(BlockState state, UseContext context,
+                                                     EnumProperty<Direction> property, int protocolValue)
+    {
+        Direction facingOrig = state.get(property);
+        Direction facing = facingOrig;
+        int decodedFacingIndex = (protocolValue & 0xF) >> 1;
+
+        if (decodedFacingIndex == 6) // the opposite of the normal facing requested
+        {
+            facing = facing.getOpposite();
+        }
+        else if (decodedFacingIndex >= 0 && decodedFacingIndex <= 5)
+        {
+            facing = Direction.byId(decodedFacingIndex);
+
+            if (property.getValues().contains(facing) == false)
+            {
+                facing = context.getEntity().getHorizontalFacing().getOpposite();
+            }
+        }
+
+        //System.out.printf("plop facing: %s -> %s (raw: %d, dec: %d)\n", facingOrig, facing, protocolValue, decodedFacingIndex);
+
+        if (facing != facingOrig && property.getValues().contains(facing))
+        {
+            if (state.getBlock() instanceof BedBlock)
+            {
+                BlockPos headPos = context.pos.offset(facing);
+                ItemPlacementContext ctx = context.getItemPlacementContext();
+
+                if (context.getWorld().getBlockState(headPos).canReplace(ctx) == false)
+                {
+                    return null;
+                }
+            }
+
+            state = state.with(property, facing);
         }
 
         return state;

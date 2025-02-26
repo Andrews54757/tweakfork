@@ -2,10 +2,10 @@ package fi.dy.masa.tweakeroo.util;
 
 import java.util.List;
 import java.util.Optional;
-
 import javax.annotation.Nonnull;
 
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -20,7 +20,8 @@ public class RayTraceUtils
     @Nonnull
     public static HitResult getRayTraceFromEntity(World worldIn, Entity entityIn, boolean useLiquids)
     {
-        double reach = 5.0d;
+        //double reach = 5.0d;
+        double reach = entityIn instanceof PlayerEntity pe ? pe.getBlockInteractionRange() + 1.0d : 5.0d;
         return getRayTraceFromEntity(worldIn, entityIn, useLiquids, reach);
     }
 
@@ -47,9 +48,8 @@ public class RayTraceUtils
         Optional<Vec3d> entityTrace = Optional.empty();
         Entity targetEntity = null;
 
-        for (int i = 0; i < list.size(); i++)
+        for (Entity entity : list)
         {
-            Entity entity = list.get(i);
             bb = entity.getBoundingBox();
             Optional<Vec3d> traceTmp = bb.raycast(lookVec, eyesVec);
 

@@ -1,45 +1,59 @@
 package fi.dy.masa.tweakeroo.util;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.MapColor;
+import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.CommandBlockBlockEntity;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.block.entity.SignText;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.AbstractSignEditScreen;
+import net.minecraft.client.gui.screen.world.CustomizeFlatLevelScreen;
 import net.minecraft.client.input.Input;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.option.GameOptions;
+import net.minecraft.client.world.GeneratorOptionsHolder;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.MapIdComponent;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.BlockItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.map.MapState;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
+import net.minecraft.registry.*;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.resource.featuretoggle.FeatureSet;
+import net.minecraft.structure.StructureSet;
+import net.minecraft.text.*;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.*;
 import net.minecraft.world.World;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.BiomeKeys;
+import net.minecraft.world.gen.chunk.FlatChunkGeneratorConfig;
+import net.minecraft.world.gen.chunk.FlatChunkGeneratorLayer;
+import net.minecraft.world.gen.feature.PlacedFeature;
 
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.Message;
@@ -47,18 +61,18 @@ import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.PositionUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import fi.dy.masa.malilib.util.time.TimeFormat;
 import fi.dy.masa.tweakeroo.Reference;
 import fi.dy.masa.tweakeroo.Tweakeroo;
 import fi.dy.masa.tweakeroo.config.Configs;
 import fi.dy.masa.tweakeroo.config.FeatureToggle;
 import fi.dy.masa.tweakeroo.config.Hotkeys;
-import fi.dy.masa.tweakeroo.mixin.IMixinAxeItem;
-import fi.dy.masa.tweakeroo.mixin.IMixinClientWorld;
-import fi.dy.masa.tweakeroo.mixin.IMixinCommandBlockExecutor;
-import fi.dy.masa.tweakeroo.mixin.IMixinShovelItem;
+import fi.dy.masa.tweakeroo.mixin.*;
+import fi.dy.masa.tweakeroo.mixin.block.IMixinCommandBlockExecutor;
+import fi.dy.masa.tweakeroo.mixin.item.IMixinAxeItem;
+import fi.dy.masa.tweakeroo.mixin.item.IMixinShovelItem;
 import fi.dy.masa.tweakeroo.renderer.RenderUtils;
-import net.minecraft.entity.EntityPose;
-import net.minecraft.util.math.Direction;
+import fi.dy.masa.tweakeroo.tweaks.MiscTweaks;
 
 public class MiscUtils
 {
@@ -73,14 +87,26 @@ public class MiscUtils
     private static double mouseSensitivity = -1.0F;
     private static boolean zoomActive;
 
+    private static boolean periodicAttackActive;
+    private static boolean periodicUseActive;
+    private static boolean periodicHoldAttackActive;
+    private static boolean periodicHoldUseActive;
+
+    private static PostKeyAction lastZoomValue;
+    private static PostKeyAction lastPeriodicAttackValue;
+    private static PostKeyAction lastPeriodicUseValue;
+    private static PostKeyAction lastPeriodicHoldAttackValue;
+    private static PostKeyAction lastPeriodicHoldUseValue;
+
     public static void handlePlayerDeceleration()
     {
         MinecraftClient mc = MinecraftClient.getInstance();
         ClientPlayerEntity player = mc.player;
         Input input = player.input;
 
-        if (input.jumping || input.sneaking ||
-            player.forwardSpeed != 0 || player.sidewaysSpeed != 0 || player.getAbilities().flying == false)
+        //if (input.jumping || input.sneaking ||
+        if (input.playerInput.jump() || input.playerInput.sneak() ||
+                player.forwardSpeed != 0 || player.sidewaysSpeed != 0 || player.getAbilities().flying == false)
         {
             return;
         }
@@ -98,17 +124,35 @@ public class MiscUtils
         int vertical = 0;
         int strafe = 0;
 
-        if (options.forwardKey.isPressed()) { forward += 1;  }
-        if (options.backKey.isPressed())    { forward -= 1;  }
-        if (options.leftKey.isPressed())    { strafe += 1;   }
-        if (options.rightKey.isPressed())   { strafe -= 1;   }
-        if (options.jumpKey.isPressed())    { vertical += 1; }
-        if (options.sneakKey.isPressed())   { vertical -= 1; }
+        if (options.forwardKey.isPressed())
+        {
+            forward += 1;
+        }
+        if (options.backKey.isPressed())
+        {
+            forward -= 1;
+        }
+        if (options.leftKey.isPressed())
+        {
+            strafe += 1;
+        }
+        if (options.rightKey.isPressed())
+        {
+            strafe -= 1;
+        }
+        if (options.jumpKey.isPressed())
+        {
+            vertical += 1;
+        }
+        if (options.sneakKey.isPressed())
+        {
+            vertical -= 1;
+        }
 
         double speed = (forward != 0 && strafe != 0) ? 1.2 : 1.0;
-        double forwardRamped  = getRampedMotion(lastMotion.x, forward , rampAmount, decelerationFactor) / speed;
+        double forwardRamped = getRampedMotion(lastMotion.x, forward, rampAmount, decelerationFactor) / speed;
         double verticalRamped = getRampedMotion(lastMotion.y, vertical, rampAmount, decelerationFactor);
-        double strafeRamped   = getRampedMotion(lastMotion.z, strafe  , rampAmount, decelerationFactor) / speed;
+        double strafeRamped = getRampedMotion(lastMotion.z, strafe, rampAmount, decelerationFactor) / speed;
 
         return new Vec3d(forwardRamped, verticalRamped, strafeRamped);
     }
@@ -141,7 +185,7 @@ public class MiscUtils
     public static boolean isZoomActive()
     {
         return FeatureToggle.TWEAK_ZOOM.getBooleanValue() &&
-               Hotkeys.ZOOM_ACTIVATE.getKeybind().isKeybindHeld();
+                Hotkeys.ZOOM_ACTIVATE.getKeybind().isKeybindHeld();
     }
 
     public static void checkZoomStatus()
@@ -157,6 +201,7 @@ public class MiscUtils
         if (Configs.Generic.ZOOM_ADJUST_MOUSE_SENSITIVITY.getBooleanValue())
         {
             setMouseSensitivityForZoom();
+            lastZoomValue = new PostKeyAction(Configs.Generic.ZOOM_FOV.getDoubleValue());
         }
 
         zoomActive = true;
@@ -167,6 +212,16 @@ public class MiscUtils
         if (zoomActive)
         {
             resetMouseSensitivityForZoom();
+            if (lastZoomValue != null && lastZoomValue.isActive())
+            {
+                if (lastZoomValue.getLastDoubleValue() != Configs.Generic.ZOOM_FOV.getDoubleValue() &&
+                        Configs.Generic.ZOOM_RESET_FOV_ON_ACTIVATE.getBooleanValue())
+                {
+                    Configs.Generic.ZOOM_FOV.setDoubleValue(lastZoomValue.getLastDoubleValue());
+                }
+
+                lastZoomValue.setActionHandled();
+            }
 
             // Refresh the rendered chunks when exiting zoom mode
             MinecraftClient.getInstance().worldRenderer.scheduleTerrainUpdate();
@@ -205,6 +260,126 @@ public class MiscUtils
         }
     }
 
+    public boolean isPeriodicAttackActive()
+    {
+        return periodicAttackActive;
+    }
+
+    public static void onPeriodicAttackActivated()
+    {
+        lastPeriodicAttackValue = new PostKeyAction(Configs.Generic.PERIODIC_ATTACK_INTERVAL.getIntegerValue());
+        periodicAttackActive = true;
+    }
+
+    public static void onPeriodicAttackDeactivated()
+    {
+        if (periodicAttackActive)
+        {
+            if (lastPeriodicAttackValue != null && lastPeriodicAttackValue.isActive())
+            {
+                if (lastPeriodicAttackValue.getLastIntValue() != Configs.Generic.PERIODIC_ATTACK_INTERVAL.getIntegerValue() &&
+                        Configs.Generic.PERIODIC_ATTACK_RESET_ON_ACTIVATE.getBooleanValue())
+                {
+                    Configs.Generic.PERIODIC_ATTACK_INTERVAL.setIntegerValue(lastPeriodicAttackValue.getLastIntValue());
+                }
+
+                lastPeriodicAttackValue.setActionHandled();
+            }
+
+            periodicAttackActive = false;
+        }
+    }
+
+    public boolean isPeriodicUseActive()
+    {
+        return periodicUseActive;
+    }
+
+    public static void onPeriodicUseActivated()
+    {
+        lastPeriodicUseValue = new PostKeyAction(Configs.Generic.PERIODIC_USE_INTERVAL.getIntegerValue());
+        periodicUseActive = true;
+    }
+
+    public static void onPeriodicUseDeactivated()
+    {
+        if (periodicUseActive)
+        {
+            if (lastPeriodicUseValue != null && lastPeriodicUseValue.isActive())
+            {
+                if (lastPeriodicUseValue.getLastIntValue() != Configs.Generic.PERIODIC_USE_INTERVAL.getIntegerValue() &&
+                        Configs.Generic.PERIODIC_USE_RESET_ON_ACTIVATE.getBooleanValue())
+                {
+                    Configs.Generic.PERIODIC_USE_INTERVAL.setIntegerValue(lastPeriodicUseValue.getLastIntValue());
+                }
+
+                lastPeriodicUseValue.setActionHandled();
+            }
+
+            periodicUseActive = false;
+        }
+    }
+
+    public boolean isPeriodicHoldAttackActive()
+    {
+        return periodicHoldAttackActive;
+    }
+
+    public static void onPeriodicHoldAttackActivated()
+    {
+        lastPeriodicHoldAttackValue = new PostKeyAction(Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.getIntegerValue());
+        periodicHoldAttackActive = true;
+    }
+
+    public static void onPeriodicHoldAttackDeactivated()
+    {
+        if (periodicHoldAttackActive)
+        {
+            if (lastPeriodicHoldAttackValue != null && lastPeriodicHoldAttackValue.isActive())
+            {
+                if (lastPeriodicHoldAttackValue.getLastIntValue() != Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.getIntegerValue() &&
+                        Configs.Generic.PERIODIC_HOLD_ATTACK_RESET_ON_ACTIVATE.getBooleanValue())
+                {
+                    Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.setIntegerValue(lastPeriodicHoldAttackValue.getLastIntValue());
+                }
+
+                lastPeriodicHoldAttackValue.setActionHandled();
+            }
+
+            periodicHoldAttackActive = false;
+        }
+    }
+
+    public boolean isPeriodicHoldUseActive()
+    {
+        return periodicHoldUseActive;
+    }
+
+    public static void onPeriodicHoldUseActivated()
+    {
+        lastPeriodicHoldUseValue = new PostKeyAction(Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.getIntegerValue());
+        periodicHoldUseActive = true;
+    }
+
+    public static void onPeriodicHoldUseDeactivated()
+    {
+        if (periodicHoldUseActive)
+        {
+            if (lastPeriodicHoldUseValue != null && lastPeriodicHoldUseValue.isActive())
+            {
+                if (lastPeriodicHoldUseValue.getLastIntValue() != Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.getIntegerValue() &&
+                        Configs.Generic.PERIODIC_HOLD_USE_RESET_ON_ACTIVATE.getBooleanValue())
+                {
+                    Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.setIntegerValue(lastPeriodicHoldUseValue.getLastIntValue());
+                }
+
+                lastPeriodicHoldUseValue.setActionHandled();
+            }
+
+            periodicHoldUseActive = false;
+        }
+    }
+
     public static boolean isStrippableLog(World world, BlockPos pos)
     {
         BlockState state = world.getBlockState(pos);
@@ -240,7 +415,7 @@ public class MiscUtils
         style = style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(coords)));
         message.setStyle(style);
         mc.inGameHud.getChatHud().addMessage(message);
-        Tweakeroo.logger.info(str);
+        Tweakeroo.LOGGER.info(str);
     }
 
     public static String getChatTimestamp()
@@ -268,7 +443,7 @@ public class MiscUtils
 
     public static void copyTextFromSign(SignBlockEntity te, boolean front)
     {
-        previousSignText = ((ISignTextAccess) te).getText(front);
+        previousSignText = ((ISignTextAccess) te).tweakeroo$getText(front);
     }
 
     public static void applyPreviousTextToSign(SignBlockEntity te, @Nullable AbstractSignEditScreen guiLines, boolean front)
@@ -277,8 +452,9 @@ public class MiscUtils
         {
             te.setText(previousSignText, front);
 
-            if (guiLines != null) {
-                ((IGuiEditSign) guiLines).applyText(previousSignText);
+            if (guiLines != null)
+            {
+                ((IGuiEditSign) guiLines).tweakeroo$applyText(previousSignText);
             }
         }
     }
@@ -329,9 +505,12 @@ public class MiscUtils
             actionResult = mc.interactionManager.interactEntity(player, entity, hand);
         }
 
-        if (actionResult.isAccepted() && actionResult.shouldSwingHand())
+        if (actionResult instanceof ActionResult.Success success)
         {
-            player.swingHand(hand);
+            if (success.swingSource() == ActionResult.SwingSource.CLIENT)
+            {
+                player.swingHand(hand);
+            }
         }
     }
 
@@ -391,10 +570,13 @@ public class MiscUtils
             }
 
             double offset = Math.abs(MathHelper.wrapDegrees((float) (snappedPitch - realPitch)));
-            if (GuiBase.isCtrlDown()) System.out.printf("real: %.2f, snapped: %.2f, offset: %.2f\n", realPitch, snappedPitch, offset);
+            if (GuiBase.isCtrlDown())
+            {
+                System.out.printf("real: %.2f, snapped: %.2f, offset: %.2f\n", realPitch, snappedPitch, offset);
+            }
 
             if (Configs.Generic.SNAP_AIM_ONLY_CLOSE_TO_ANGLE.getBooleanValue() == false ||
-                offset <= Configs.Generic.SNAP_AIM_THRESHOLD_PITCH.getDoubleValue())
+                    offset <= Configs.Generic.SNAP_AIM_THRESHOLD_PITCH.getDoubleValue())
             {
                 snappedPitch = MathHelper.clamp(MathHelper.wrapDegrees(snappedPitch), -limit, limit);
 
@@ -438,7 +620,7 @@ public class MiscUtils
             double snappedYaw = calculateSnappedAngle(realYaw, step);
 
             if (Configs.Generic.SNAP_AIM_ONLY_CLOSE_TO_ANGLE.getBooleanValue() == false ||
-                Math.abs(MathHelper.wrapDegrees((float) (snappedYaw - realYaw))) <= Configs.Generic.SNAP_AIM_THRESHOLD_YAW.getDoubleValue())
+                    Math.abs(MathHelper.wrapDegrees((float) (snappedYaw - realYaw))) <= Configs.Generic.SNAP_AIM_THRESHOLD_YAW.getDoubleValue())
             {
                 if (Configs.Internal.SNAP_AIM_LAST_YAW.getDoubleValue() != snappedYaw)
                 {
@@ -467,22 +649,34 @@ public class MiscUtils
         return MathHelper.floorMod(((int) (offsetRealRotation / step)) * step, 360.0D);
     }
 
+    /**
+     * Copied from Tweak Fork by Andrew54757
+     */
     public static Vec3d getEyesPos(PlayerEntity player)
-	{	
-		return new Vec3d(player.getX(), player.getY() + player.getEyeHeight(player.getPose()), player.getZ());
-	}
+    {
+        return new Vec3d(player.getX(), player.getY() + player.getEyeHeight(player.getPose()), player.getZ());
+    }
+
+    /**
+     * Copied from Tweak Fork by Andrew54757
+     */
     public static BlockPos getPlayerHeadPos(PlayerEntity player)
-	{	
-		return (player.getPose() == EntityPose.STANDING) ? player.getBlockPos().offset(Direction.UP) : player.getBlockPos();
-	}
-    public static boolean isInReach(BlockPos pos, PlayerEntity player, double reach) {
+    {
+        return (player.getPose() == EntityPose.STANDING) ? player.getBlockPos().offset(Direction.UP) : player.getBlockPos();
+    }
+
+    /**
+     * Copied from Tweak Fork by Andrew54757
+     */
+    public static boolean isInReach(BlockPos pos, PlayerEntity player, double reach)
+    {
         Vec3d playerpos = getEyesPos(player);
-		double d = playerpos.getX() - ((double)pos.getX() + 0.5D);
-		double d1 = playerpos.getY() - ((double)pos.getY() + 0.5D);
-		double d2 = playerpos.getZ() - ((double)pos.getZ() + 0.5D);
-        return d*d+d1*d1+d2*d2 <= reach*reach;
-    } 
-	
+        double d = playerpos.getX() - ((double) pos.getX() + 0.5D);
+        double d1 = playerpos.getY() - ((double) pos.getY() + 0.5D);
+        double d2 = playerpos.getZ() - ((double) pos.getZ() + 0.5D);
+        return d * d + d1 * d1 + d2 * d2 <= reach * reach;
+    }
+
     public static boolean writeAllMapsAsImages()
     {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -492,37 +686,45 @@ public class MiscUtils
             return true;
         }
 
-        Map<String, MapState> data = ((IMixinClientWorld) mc.world).tweakeroo_getMapStates();
+        Map<MapIdComponent, MapState> data = ((IMixinClientWorld) mc.world).tweakeroo_getMapStates();
         String worldName = StringUtils.getWorldOrServerName();
 
         if (worldName == null)
         {
-            worldName = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date(System.currentTimeMillis()));
+            //worldName = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date(System.currentTimeMillis()));
+            worldName = TimeFormat.REGULAR.formatNow();
         }
 
-        File dir = FileUtils.getConfigDirectory().toPath().resolve(Reference.MOD_ID).resolve("map_images").resolve(worldName).toFile();
+        Path dir = FileUtils.getConfigDirectoryAsPath().resolve(Reference.MOD_ID).resolve("map_images").resolve(worldName);
 
-        if (dir.exists() == false && dir.mkdirs() == false)
+        if (!Files.exists(dir))
         {
-            InfoUtils.showGuiOrInGameMessage(Message.MessageType.ERROR, "Failed to create directory: " + dir.getAbsolutePath());
-            return true;
+            FileUtils.createDirectoriesIfMissing(dir);
+            //Tweakeroo.debugLog("writeAllMapsAsImages(): Creating directory '{}'.", dir.toAbsolutePath());
         }
 
-        int count = 0;
-
-        for (Map.Entry<String, MapState> entry : data.entrySet())
+        if (Files.isDirectory(dir))
         {
-            File file = new File(dir, entry.getKey() + ".png");
-            writeMapAsImage(file, entry.getValue());
-            ++count;
-        }
+            int count = 0;
 
-        InfoUtils.showGuiOrInGameMessage(Message.MessageType.INFO, String.format("Wrote %d maps to image files", count));
+            for (Map.Entry<MapIdComponent, MapState> entry : data.entrySet())
+            {
+                Path file = dir.resolve(entry.getKey().asString() + ".png");
+                writeMapAsImage(file, entry.getValue());
+                ++count;
+            }
+
+            InfoUtils.showGuiOrInGameMessage(Message.MessageType.INFO, String.format("Wrote %d maps to image files", count));
+        }
+        else
+        {
+            InfoUtils.showGuiOrInGameMessage(Message.MessageType.ERROR, "Failed to create directory: " + dir.toAbsolutePath());
+        }
 
         return true;
     }
 
-    private static void writeMapAsImage(File fileOut, MapState state)
+    private static void writeMapAsImage(Path fileOut, MapState state)
     {
         BufferedImage image = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
 
@@ -533,19 +735,170 @@ public class MiscUtils
                 int index = x + y * 128;
                 int color = MapColor.getRenderColor(state.colors[index]);
                 // Swap the color channels from ABGR to ARGB
-                int outputColor = (color & 0xFF00FF00) | (color & 0xFF0000) >> 16 | (color & 0xFF) << 16;
+                //int outputColor = (color & 0xFF00FF00) | (color & 0xFF0000) >> 16 | (color & 0xFF) << 16;
 
-                image.setRGB(x, y, outputColor);
+                image.setRGB(x, y, color);
             }
         }
 
         try
         {
-            ImageIO.write(image, "png", fileOut);
+            ImageIO.write(image, "png", fileOut.toFile());
         }
         catch (Exception e)
         {
-            InfoUtils.showGuiOrInGameMessage(Message.MessageType.ERROR, "Failed to write image to file: " + fileOut.getAbsolutePath());
+            InfoUtils.showGuiOrInGameMessage(Message.MessageType.ERROR, "Failed to write image to file: " + fileOut.toAbsolutePath());
+        }
+    }
+
+    public static boolean isShulkerBox(ItemStack stack)
+    {
+        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
+    }
+
+    public static boolean hasCustomMaxStackSize(ItemStack stack)
+    {
+        int defaultStackSize = stack.getDefaultComponents().getOrDefault(DataComponentTypes.MAX_STACK_SIZE, 1);
+        int currentStackSize = stack.getOrDefault(DataComponentTypes.MAX_STACK_SIZE, 1);
+        return defaultStackSize != currentStackSize;
+    }
+
+    public static boolean registerPresetFromString(CustomizeFlatLevelScreen screen, String str)
+    {
+        Matcher matcher = MiscUtils.PATTERN_WORLD_PRESET.matcher(str);
+
+        if (matcher.matches())
+        {
+            // TODO --> I added some code here, and added the IMixinCustomizeFlatLevelScreen
+            GeneratorOptionsHolder generatorOptionsHolder = ((IMixinCustomizeFlatLevelScreen) screen).tweakeroo_getCreateWorldParent().getWorldCreator().getGeneratorOptionsHolder();
+            DynamicRegistryManager.Immutable registryManager = generatorOptionsHolder.getCombinedRegistryManager();
+            FeatureSet featureSet = generatorOptionsHolder.dataConfiguration().enabledFeatures();
+            RegistryEntryLookup<Biome> biomeLookup = registryManager.getOrThrow(RegistryKeys.BIOME);
+            RegistryEntryLookup<StructureSet> structureLookup = registryManager.getOrThrow(RegistryKeys.STRUCTURE_SET);
+            RegistryEntryLookup<PlacedFeature> featuresLookup = registryManager.getOrThrow(RegistryKeys.PLACED_FEATURE);
+            RegistryEntryLookup<Block> blockLookup = registryManager.getOrThrow(RegistryKeys.BLOCK).withFeatureFilter(featureSet);
+            FlatChunkGeneratorConfig defaultConfig = FlatChunkGeneratorConfig.getDefaultConfig(biomeLookup, structureLookup, featuresLookup);
+            FlatChunkGeneratorConfig currentConfig = screen.getConfig();
+            RegistryEntry.Reference<Biome> referenceEntry = biomeLookup.getOrThrow(BiomeKeys.PLAINS);
+            RegistryEntry.Reference<Biome> biomeEntry = referenceEntry;
+
+            String name = matcher.group("name");
+            String blocksString = matcher.group("blocks");
+            String biomeName = matcher.group("biome");
+            // TODO add back the features
+            String iconItemName = matcher.group("icon");
+
+            try
+            {
+                Optional<RegistryKey<Biome>> optBiome = Optional.ofNullable(Identifier.tryParse(biomeName)).map((biomeId) ->
+                                                                                                                        RegistryKey.of(RegistryKeys.BIOME, biomeId));
+
+                biomeEntry = optBiome.flatMap(biomeLookup::getOptional).orElse(referenceEntry);
+            }
+            catch (Exception ignore)
+            {
+            }
+
+            if (biomeEntry == null)
+            {
+                Tweakeroo.LOGGER.error("Invalid biome while parsing flat world string: '{}'", biomeName);
+                return false;
+            }
+
+            Item item = null;
+
+            try
+            {
+                Optional<RegistryEntry.Reference<Item>> opt = Registries.ITEM.getEntry(Identifier.of(iconItemName));
+                if (opt.isPresent())
+                {
+                    item = opt.get().value();
+                }
+            }
+            catch (Exception ignore)
+            {
+            }
+
+            if (item == null)
+            {
+                Tweakeroo.LOGGER.error("Invalid item for icon while parsing flat world string: '{}'", iconItemName);
+                return false;
+            }
+
+            List<FlatChunkGeneratorLayer> layers = MiscTweaks.parseBlockString(blocksString);
+
+            if (layers == null)
+            {
+                Tweakeroo.LOGGER.error("Failed to get the layers for the flat world preset");
+                return false;
+            }
+
+            FlatChunkGeneratorConfig newConfig = defaultConfig.with(layers, defaultConfig.getStructureOverrides(), biomeEntry);
+
+            //new PresetsScreen.SuperflatPresetsListWidget.SuperflatPresetEntry(null);
+            //addPreset(Text.translatable(name), item, biome, ImmutableSet.of(), false, false, layers);
+
+            screen.setConfig(newConfig);
+
+            return true;
+        }
+        else
+        {
+            Tweakeroo.LOGGER.error("Flat world preset string did not match the regex");
+        }
+
+        return false;
+    }
+
+    public static class PostKeyAction
+    {
+        private int lastIntValue;
+        private double lastDoubleValue;
+        private long lastActive;
+        private boolean active = false;
+
+        public PostKeyAction(int lastIntValue)
+        {
+            this.lastIntValue = lastIntValue;
+            this.lastDoubleValue = -1;
+            this.lastActive = Util.getMeasuringTimeNano();
+            this.active = true;
+        }
+
+        public PostKeyAction(double lastDoubleValue)
+        {
+            this.lastDoubleValue = lastDoubleValue;
+            this.lastIntValue = -1;
+            this.lastActive = Util.getMeasuringTimeNano();
+            this.active = true;
+        }
+
+        public boolean isActive()
+        {
+            return this.active;
+        }
+
+        public int getLastIntValue()
+        {
+            return this.lastIntValue;
+        }
+
+        public double getLastDoubleValue()
+        {
+            return this.lastDoubleValue;
+        }
+
+        public long getLastActive()
+        {
+            return this.lastActive;
+        }
+
+        public void setActionHandled()
+        {
+            this.lastIntValue = -1;
+            this.lastDoubleValue = -1;
+            this.lastActive = Util.getMeasuringTimeNano();
+            this.active = false;
         }
     }
 }

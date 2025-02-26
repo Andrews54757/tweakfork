@@ -1,45 +1,32 @@
 package fi.dy.masa.tweakeroo.util;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import fi.dy.masa.malilib.gui.Message;
-import fi.dy.masa.malilib.util.Constants;
-import fi.dy.masa.malilib.util.GuiUtils;
-import fi.dy.masa.malilib.util.InfoUtils;
-import fi.dy.masa.tweakeroo.Tweakeroo;
-import fi.dy.masa.tweakeroo.config.Configs;
-import fi.dy.masa.tweakeroo.config.FeatureToggle;
-import fi.dy.masa.tweakeroo.tweaks.PlacementTweaks;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.AttributeModifierSlot;
+import net.minecraft.component.type.AttributeModifiersComponent;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
+import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ArmorItem;
-import net.minecraft.item.ElytraItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.MiningToolItem;
-import net.minecraft.item.SwordItem;
-import net.minecraft.item.ToolItem;
-import net.minecraft.nbt.NbtCompound;
+import net.minecraft.item.*;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
@@ -53,6 +40,17 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.intprovider.UniformIntProvider;
 import net.minecraft.world.World;
 
+import fi.dy.masa.malilib.data.MaLiLibTag;
+import fi.dy.masa.malilib.gui.Message;
+import fi.dy.masa.malilib.util.EquipmentUtils;
+import fi.dy.masa.malilib.util.GuiUtils;
+import fi.dy.masa.malilib.util.InfoUtils;
+import fi.dy.masa.tweakeroo.Tweakeroo;
+import fi.dy.masa.tweakeroo.config.Configs;
+import fi.dy.masa.tweakeroo.config.FeatureToggle;
+import fi.dy.masa.tweakeroo.mixin.block.IMixinAbstractBlock;
+import fi.dy.masa.tweakeroo.tweaks.PlacementTweaks;
+
 public class InventoryUtils
 {
     private static final List<EquipmentSlot> REPAIR_MODE_SLOTS = new ArrayList<>();
@@ -60,6 +58,7 @@ public class InventoryUtils
     private static final HashSet<Item> UNSTACKING_ITEMS = new HashSet<>();
     private static final List<Integer> TOOL_SWITCHABLE_SLOTS = new ArrayList<>();
     private static final List<Integer> TOOL_SWITCH_IGNORED_SLOTS = new ArrayList<>();
+    //private static final List<String> PREFER_SILK_TOUCH = new ArrayList<>();
     private static final HashMap<EntityType<?>, HashSet<Item>> WEAPON_MAPPING = new HashMap<>();
 
     public static void setToolSwitchableSlots(String configStr)
@@ -71,6 +70,14 @@ public class InventoryUtils
     {
         parseSlotsFromString(configStr, TOOL_SWITCH_IGNORED_SLOTS);
     }
+
+    /*
+    public static void setPreferSilkTouchList(List<String> names)
+    {
+        PREFER_SILK_TOUCH.clear();
+        PREFER_SILK_TOUCH.addAll(names);
+    }
+     */
 
     public static void parseSlotsFromString(String configStr, Collection<Integer> output)
     {
@@ -133,16 +140,17 @@ public class InventoryUtils
         {
             try
             {
-                Item item = Registries.ITEM.get(new Identifier(name));
+                //Item item = Registries.ITEM.get(Identifier.tryParse(name));
+                Optional<RegistryEntry.Reference<Item>> opt = Registries.ITEM.getEntry(Identifier.tryParse(name));
 
-                if (item != null && item != Items.AIR)
+                if (opt.isPresent() && opt.get().value() != Items.AIR)
                 {
-                    UNSTACKING_ITEMS.add(item);
+                    UNSTACKING_ITEMS.add(opt.get().value());
                 }
             }
             catch (Exception e)
             {
-                Tweakeroo.logger.warn("Failed to set an unstacking protected item from name '{}'", name, e);
+                Tweakeroo.LOGGER.warn("Failed to set an unstacking protected item from name '{}'", name, e);
             }
         }
     }
@@ -190,31 +198,31 @@ public class InventoryUtils
 
             if (split.length != 2)
             {
-                Tweakeroo.logger.warn("Expected weapon mapping to be `entity_ids => weapon_ids` got '{}'", mapping);
+                Tweakeroo.LOGGER.warn("Expected weapon mapping to be `entity_ids => weapon_ids` got '{}'", mapping);
                 continue;
             }
 
             HashSet<Item> weapons = new HashSet<>();
             String entities = split[0].trim();
             String items = split[1].trim();
-            
+
             if (items.equals("<ignore>") == false)
             {
                 for (String itemId : items.split(","))
                 {
                     try
                     {
-                        Optional<Item> weapon = Registries.ITEM.getOrEmpty(new Identifier(itemId));
+                        Optional<RegistryEntry.Reference<Item>> opt = Registries.ITEM.getEntry(Identifier.tryParse(itemId));
 
-                        if (weapon.isPresent())
+                        if (opt.isPresent())
                         {
-                            weapons.add(weapon.get());
+                            weapons.add(opt.get().value());
                             continue;
                         }
                     }
                     catch (Exception ignore) {}
 
-                    Tweakeroo.logger.warn("Unable to find item to use as weapon: '{}'", itemId);
+                    Tweakeroo.LOGGER.warn("Unable to find item to use as weapon: '{}'", itemId);
                 }
             }
 
@@ -228,17 +236,17 @@ public class InventoryUtils
                 {
                     try
                     {
-                        Optional<EntityType<?>> entity = Registries.ENTITY_TYPE.getOrEmpty(new Identifier(entity_id));
+                        Optional<RegistryEntry.Reference<EntityType<?>>> opt = Registries.ENTITY_TYPE.getEntry(Identifier.tryParse(entity_id));
 
-                        if (entity.isPresent())
+                        if (opt.isPresent())
                         {
-                            WEAPON_MAPPING.computeIfAbsent(entity.get(), s -> new HashSet<>()).addAll(weapons);
+                            WEAPON_MAPPING.computeIfAbsent(opt.get().value(), s -> new HashSet<>()).addAll(weapons);
                             continue;
                         }
                     }
                     catch (Exception ignore) {}
 
-                    Tweakeroo.logger.warn("Unable to find entity: '{}'", entity_id);
+                    Tweakeroo.LOGGER.warn("Unable to find entity: '{}'", entity_id);
                 }
             }
         }
@@ -316,7 +324,7 @@ public class InventoryUtils
     {
         int slotWithItem;
 
-        if (stackReference.getItem().isDamageable())
+        if (stackReference.isDamageable())
         {
             int minDurability = getMinDurability(stackReference);
             slotWithItem = findSlotWithSuitableReplacementToolWithDurabilityLeft(player.playerScreenHandler, stackReference, minDurability);
@@ -434,7 +442,35 @@ public class InventoryUtils
 
     private static boolean isBetterWeapon(ItemStack testedStack, ItemStack previousWeapon, Entity entity)
     {
-        return testedStack.isEmpty() == false && matchesWeaponMapping(testedStack, entity) && (makesMoreDamage(testedStack, previousWeapon) || matchesWeaponMapping(previousWeapon, entity) == false);
+        if (previousWeapon.isEmpty())
+        {
+            return true;
+        }
+
+        if (testedStack.isEmpty() == false)
+        {
+            if (matchesWeaponMapping(testedStack, entity))
+            {
+                if (!matchesWeaponMapping(previousWeapon, entity))
+                {
+                    return true;
+                }
+                if (getBaseAttackDamage(testedStack) > getBaseAttackDamage(previousWeapon))
+                {
+                    return true;
+                }
+
+                if (getBaseAttackDamage(testedStack) == getBaseAttackDamage(previousWeapon))
+                {
+                    if (Configs.Generic.WEAPON_SWAP_BETTER_ENCHANTS.getBooleanValue())
+                    {
+                        return hasTheSameOrBetterRarity(testedStack, previousWeapon) && hasSameOrBetterWeaponEnchantments(testedStack, previousWeapon);
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static boolean isBetterWeaponAndHasDurability(ItemStack testedStack, ItemStack previousTool, Entity entity)
@@ -442,22 +478,25 @@ public class InventoryUtils
         return hasEnoughDurability(testedStack) && isBetterWeapon(testedStack, previousTool, entity);
     }
 
-    private static boolean makesMoreDamage(ItemStack testedStack, ItemStack previousTool)
-    {
-        return getBaseAttackDamage(testedStack) > getBaseAttackDamage(previousTool);
-    }
-
     private static float getBaseAttackDamage(ItemStack stack)
     {
         Item item = stack.getItem();
+        if ((item instanceof SwordItem) == false && (item instanceof MiningToolItem) == false)
+            return 0F;
 
-        if (item instanceof SwordItem)
+        AttributeModifiersComponent itemAttribute = stack.getComponents().get(DataComponentTypes.ATTRIBUTE_MODIFIERS);
+
+        if (itemAttribute != null && itemAttribute.equals(AttributeModifiersComponent.DEFAULT) == false)
         {
-            return ((SwordItem) item).getAttackDamage();
-        }
-        else if (item instanceof MiningToolItem)
-        { 
-            return ((MiningToolItem) item).getAttackDamage();
+            List<AttributeModifiersComponent.Entry> modifiers = itemAttribute.modifiers();
+
+            for (AttributeModifiersComponent.Entry entry : modifiers)
+            {
+                if (entry.attribute().equals(EntityAttributes.ATTACK_DAMAGE))
+                {
+                    return (float) entry.modifier().value();
+                }
+            }
         }
 
         return 0F;
@@ -466,6 +505,7 @@ public class InventoryUtils
     protected static boolean matchesWeaponMapping(ItemStack stack, Entity entity)
     {
         HashSet<Item> weapons = WEAPON_MAPPING.getOrDefault(entity.getType(), WEAPON_MAPPING.get(null));
+
         return weapons != null && weapons.contains(stack.getItem());
     }
 
@@ -499,9 +539,84 @@ public class InventoryUtils
         }
     }
 
+    public static int getEnchantmentLevel(ItemStack stack, @Nonnull RegistryKey<Enchantment> enchantment)
+    {
+        ItemEnchantmentsComponent enchants = stack.getEnchantments();
+
+        if (enchants.equals(ItemEnchantmentsComponent.DEFAULT) == false)
+        {
+            Set<RegistryEntry<Enchantment>> enchantList = enchants.getEnchantments();
+
+            for (RegistryEntry<Enchantment> entry : enchantList)
+            {
+                if (entry.matchesKey(enchantment))
+                {
+                    return enchants.getLevel(entry);
+                }
+            }
+        }
+
+        return -1;
+    }
+
     private static boolean isBetterTool(ItemStack testedStack, ItemStack previousTool, BlockState state)
     {
-        return testedStack.isEmpty() == false && isMoreEffectiveTool(testedStack, previousTool, state);
+        if (previousTool.isEmpty())
+        {
+            return true;
+        }
+
+        if (state.isOf(Blocks.BAMBOO))
+        {
+            if (EquipmentUtils.isMeleeWeapon(testedStack))
+            {
+                return true;
+            }
+            else if (EquipmentUtils.isMeleeWeapon(previousTool))
+            {
+                return false;
+            }
+        }
+
+        if (testedStack.isEmpty() == false)
+        {
+            if (Configs.Generic.TOOL_SWAP_SILK_TOUCH_FIRST.getBooleanValue() &&
+                EquipmentUtils.hasSilkTouch(testedStack) &&
+                state.isIn(MaLiLibTag.Blocks.NEEDS_SILK_TOUCH))
+            {
+                return hasTheSameOrBetterMaterial(testedStack, previousTool);
+            }
+            /*
+            else if (testedStack.getItem() instanceof ShearsItem &&
+                    state.isIn(MaLiLibTag.Blocks.NEEDS_SHEARS))
+            {
+                return getBaseBlockBreakingSpeed(testedStack, state) >= getBaseBlockBreakingSpeed(previousTool, state);
+            }
+             */
+
+            return isBetterToolEach(testedStack, previousTool, state);
+        }
+
+        return false;
+    }
+
+    private static boolean isBetterToolEach(ItemStack testedStack, ItemStack previousTool, BlockState state)
+    {
+        if (getBaseBlockBreakingSpeed(testedStack, state) > getBaseBlockBreakingSpeed(previousTool, state))
+        {
+            return EquipmentUtils.isCorrectTool(testedStack, state);
+        }
+        else if (getBaseBlockBreakingSpeed(testedStack, state) == getBaseBlockBreakingSpeed(previousTool, state))
+        {
+            if (Configs.Generic.TOOL_SWAP_BETTER_ENCHANTS.getBooleanValue())
+            {
+                return hasTheSameOrBetterRarity(testedStack, previousTool) &&
+                       hasSameOrBetterToolEnchantments(testedStack, previousTool) &&
+                       EquipmentUtils.isCorrectTool(testedStack, state);
+            }
+        }
+
+        return false;
     }
 
     private static boolean isBetterToolAndHasDurability(ItemStack testedStack, ItemStack previousTool, BlockState state)
@@ -509,9 +624,88 @@ public class InventoryUtils
         return hasEnoughDurability(testedStack) && isBetterTool(testedStack, previousTool, state);
     }
 
-    private static boolean isMoreEffectiveTool(ItemStack testedStack, ItemStack previousTool, BlockState state)
+    private static boolean hasTheSameOrBetterRarity(ItemStack testedStack, ItemStack previousTool)
     {
-        return getBaseBlockBreakingSpeed(testedStack, state) > getBaseBlockBreakingSpeed(previousTool, state);
+        return testedStack.getRarity().compareTo(previousTool.getRarity()) >= 0;
+    }
+
+    private static boolean hasTheSameOrBetterMaterial(ItemStack testedStack, ItemStack previousTool)
+    {
+        return Integer.compare(getMaterialWeight(testedStack), getMaterialWeight(previousTool)) > 0;
+    }
+
+    private static int getMaterialWeight(ItemStack stack)
+    {
+        String itemType = Registries.ITEM.getId(stack.getItem()).getPath();
+
+        if (itemType.contains("netherite")) return 5;
+        if (itemType.contains("diamond")) return 4;
+        if (itemType.contains("iron")) return 3;
+        if (itemType.contains("stone")) return 2;
+        if (itemType.contains("gold")) return 1;
+        if (itemType.contains("wood")) return 0;
+
+        return -1;
+    }
+
+    /**
+     * Creates a total additive value of the essential Enchantment Levels.
+     * If one of them does not contain the same Enchantment;
+     * then the level should be -1, and will reduce its total weighted value;
+     * But if the enchantment level is better, then the weight is +1, and adds to it's value.
+     * The same Enchantment Level would then be a 0; and has no weighted change.
+     * The result is then in favor for the testedStack if the total weight is > 0.
+     */
+    private static boolean hasSameOrBetterToolEnchantments(ItemStack testedStack, ItemStack previousTool)
+    {
+        int count = 0;
+
+        // Core Tool Enchants
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.MENDING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.UNBREAKING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.EFFICIENCY);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.FORTUNE);
+
+        return count >= 0;
+    }
+
+    private static boolean hasSameOrBetterWeaponEnchantments(ItemStack testedStack, ItemStack previousTool)
+    {
+        int count = 0;
+
+        // Core Weapon Enchantments
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.MENDING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.UNBREAKING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.LOOTING);
+
+        // Damage Dealing
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.SHARPNESS);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.SMITE);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.BANE_OF_ARTHROPODS);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.POWER);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.IMPALING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.DENSITY);
+
+        // Support
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.SWEEPING_EDGE);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.FIRE_ASPECT);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.PUNCH);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.INFINITY);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.FLAME);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.MULTISHOT);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.QUICK_CHARGE);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.PIERCING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.RIPTIDE);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.LOYALTY);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.CHANNELING);
+        count += hasSameOrBetterEnchantment(testedStack, previousTool, Enchantments.BREACH);
+
+        return count >= 0;
+    }
+
+    private static int hasSameOrBetterEnchantment(ItemStack testedStack, ItemStack previous, RegistryKey<Enchantment> enchantment)
+    {
+        return getEnchantmentLevel(testedStack, enchantment) - getEnchantmentLevel(previous, enchantment);
     }
 
     protected static float getBaseBlockBreakingSpeed(ItemStack stack, BlockState state)
@@ -520,7 +714,7 @@ public class InventoryUtils
 
         if (speed > 1.0f)
         {
-            int effLevel = EnchantmentHelper.getLevel(Enchantments.EFFICIENCY, stack);
+            int effLevel = getEnchantmentLevel(stack, Enchantments.EFFICIENCY);
 
             if (effLevel > 0)
             {
@@ -692,7 +886,7 @@ public class InventoryUtils
         if (stack.isEmpty() == false &&
             (stack.isDamageable() == false ||
              stack.isDamaged() == false ||
-             EnchantmentHelper.getLevel(Enchantments.MENDING, stack) <= 0))
+             getEnchantmentLevel(stack, Enchantments.MENDING) <= 0))
         {
             Slot slot = player.currentScreenHandler.getSlot(slotNum);
             int slotRepairableItem = findRepairableItemNotInRepairableSlot(slot, player);
@@ -705,6 +899,9 @@ public class InventoryUtils
         }
     }
 
+    /**
+     * Adds the enchantment checks for Tools or Weapons
+     */
     private static int findRepairableItemNotInRepairableSlot(Slot targetSlot, PlayerEntity player)
     {
         ScreenHandler containerPlayer = player.currentScreenHandler;
@@ -718,7 +915,7 @@ public class InventoryUtils
                 // Don't take items from the current hotbar slot
                 if ((slot.id - 36) != player.getInventory().selectedSlot &&
                     stack.isDamageable() && stack.isDamaged() && targetSlot.canInsert(stack) &&
-                    EnchantmentHelper.getLevel(Enchantments.MENDING, stack) > 0)
+                    getEnchantmentLevel(stack, Enchantments.MENDING) > 0)
                 {
                     return slot.id;
                 }
@@ -728,7 +925,40 @@ public class InventoryUtils
         return -1;
     }
 
-    public static void swapElytraWithChestPlate(@Nullable PlayerEntity player)
+    public static void equipBestElytra(PlayerEntity player)
+    {
+        if (player == null || GuiUtils.getCurrentScreen() != null)
+        {
+            return;
+        }
+
+        ScreenHandler container = player.currentScreenHandler;
+
+        Predicate<ItemStack> filter = (s) ->  s.getItem().equals(Items.ELYTRA) &&
+                s.get(DataComponentTypes.EQUIPPABLE).allows(EntityType.PLAYER) &&
+                s.getDamage() < s.getMaxDamage() - 10;
+
+        int targetSlot = findSlotWithBestItemMatch(container, (testedStack, previousBestMatch) -> {
+            if (!filter.test(testedStack)) return false;
+            if (!filter.test(previousBestMatch)) return true;
+            if (getEnchantmentLevel(testedStack, Enchantments.UNBREAKING) > getEnchantmentLevel(previousBestMatch, Enchantments.UNBREAKING))
+            {
+                return true;
+            }
+            if (getEnchantmentLevel(testedStack, Enchantments.UNBREAKING) < getEnchantmentLevel(previousBestMatch, Enchantments.UNBREAKING))
+            {
+                return false;
+            }
+            return testedStack.getDamage() <= previousBestMatch.getDamage();
+        }, UniformIntProvider.create(9, container.slots.size() - 1));
+
+        if (targetSlot >= 0)
+        {
+            swapItemToEquipmentSlot(player, EquipmentSlot.CHEST, targetSlot);
+        }
+    }
+
+    public static void swapElytraAndChestPlate(@Nullable PlayerEntity player)
     {
         if (player == null || GuiUtils.getCurrentScreen() != null)
         {
@@ -738,21 +968,69 @@ public class InventoryUtils
         ScreenHandler container = player.currentScreenHandler;
         ItemStack currentStack = player.getEquippedStack(EquipmentSlot.CHEST);
 
-        Predicate<ItemStack> stackFilterChestPlate = (s) -> s.getItem() instanceof ArmorItem && ((ArmorItem) s.getItem()).getSlotType() == EquipmentSlot.CHEST;
-        Predicate<ItemStack> stackFilterElytra = (s) -> s.getItem() instanceof ElytraItem && ElytraItem.isUsable(s);
-        Predicate<ItemStack> stackFilter = (currentStack.isEmpty() || stackFilterChestPlate.test(currentStack)) ? stackFilterElytra : stackFilterChestPlate;
-        Predicate<ItemStack> finalFilter = (s) -> s.isEmpty() == false && stackFilter.test(s) && s.getDamage() < s.getMaxDamage() - 10;
-        int targetSlot = findSuitableSlot(container, finalFilter);
+        Predicate<ItemStack> stackFilterChestPlate = (s) -> s.getItem() instanceof ArmorItem &&
+                //((ArmorItem) s.getItem()).getSlotType() == EquipmentSlot.CHEST;
+                s.get(DataComponentTypes.EQUIPPABLE).slot() == EquipmentSlot.CHEST;
 
-        if (targetSlot >= 0)
+        if (currentStack.isEmpty() || stackFilterChestPlate.test(currentStack))
         {
-            //targetSlots.sort();
-            swapItemToEquipmentSlot(player, EquipmentSlot.CHEST, targetSlot);
+            equipBestElytra(player);
+        }
+        else
+        {
+            Predicate<ItemStack> finalFilter = (s) -> stackFilterChestPlate.test(s) && s.getDamage() < s.getMaxDamage() - 10;
+
+            int targetSlot = findSlotWithBestItemMatch(container, (testedStack, previousBestMatch) -> {
+                if (!finalFilter.test(testedStack)) return false;
+                if (!finalFilter.test(previousBestMatch)) return true;
+                if (getArmorAndArmorToughnessValue(previousBestMatch, 1, AttributeModifierSlot.CHEST) < getArmorAndArmorToughnessValue(testedStack, 1, AttributeModifierSlot.CHEST))
+                {
+                    return true;
+                }
+                if (getArmorAndArmorToughnessValue(previousBestMatch, 1, AttributeModifierSlot.CHEST) > getArmorAndArmorToughnessValue(testedStack, 1, AttributeModifierSlot.CHEST))
+                {
+                    return false;
+                }
+                return getEnchantmentLevel(previousBestMatch, Enchantments.PROTECTION) <= getEnchantmentLevel(testedStack, Enchantments.PROTECTION);
+            }, UniformIntProvider.create(9, container.slots.size() - 1));
+
+            if (targetSlot >= 0)
+            {
+                swapItemToEquipmentSlot(player, EquipmentSlot.CHEST, targetSlot);
+            }
         }
     }
 
+    private static double getArmorAndArmorToughnessValue(ItemStack stack, double base, AttributeModifierSlot slot)
+    {
+        final double[] total = {base};
+
+        stack.applyAttributeModifier(slot, (entry, modifier) -> {
+            if (entry.getKey().orElseThrow() == EntityAttributes.ARMOR
+                || entry.getKey().orElseThrow() == EntityAttributes.ARMOR_TOUGHNESS)
+            {
+                switch (modifier.operation())
+                {
+                    case ADD_VALUE:
+                        total[0] += modifier.value();
+                        break;
+                    case ADD_MULTIPLIED_BASE:
+                        total[0] += modifier.value() * base;
+                        break;
+                    case ADD_MULTIPLIED_TOTAL:
+                        total[0] += modifier.value() * total[0];
+                        break;
+                    default:
+                        throw new MatchException(null, null);
+                }
+            }
+        });
+
+        return total[0];
+    }
+
     /**
-     * 
+     *
      * Finds a slot with an identical item than <b>stackReference</b>, ignoring the durability
      * of damageable items. Does not allow crafting or armor slots or the offhand slot
      * in the ContainerPlayer container.
@@ -785,9 +1063,14 @@ public class InventoryUtils
         return isHotbarSlot(slot.id);
     }
 
-    private static boolean isHotbarSlot(int slot)
+    public static boolean isHotbarSlot(int slot)
     {
         return slot >= 36 && slot < (36 + PlayerInventory.getHotbarSize());
+    }
+
+    public static boolean isOffhandSlot(int slot)
+    {
+        return slot == (36 + PlayerInventory.getHotbarSize());
     }
 
     private static void swapItemToHand(PlayerEntity player, Hand hand, int slotNumber)
@@ -820,18 +1103,22 @@ public class InventoryUtils
         }
     }
 
-
-    private static void swapItemToEquipmentSlot(PlayerEntity player, EquipmentSlot type, int sourceSlotNumber)
+    public static void swapItemToEquipmentSlot(PlayerEntity player, EquipmentSlot type, int sourceSlotNumber)
     {
         if (sourceSlotNumber != -1 && player.currentScreenHandler == player.playerScreenHandler)
         {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            ScreenHandler container = player.playerScreenHandler;
             int equipmentSlotNumber = getSlotNumberForEquipmentType(type, player);
-            int equipmentSlotInvIndex = container.getSlot(equipmentSlotNumber).getIndex();
-
-            mc.interactionManager.clickSlot(container.syncId, sourceSlotNumber, equipmentSlotInvIndex, SlotActionType.SWAP, mc.player);
+            swapSlots(player, sourceSlotNumber, equipmentSlotNumber);
         }
+    }
+
+    public static void swapSlots(PlayerEntity player, int slotNum, int otherSlot)
+    {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        ScreenHandler container = player.currentScreenHandler;
+        mc.interactionManager.clickSlot(container.syncId, slotNum, 0, SlotActionType.SWAP, player);
+        mc.interactionManager.clickSlot(container.syncId, otherSlot, 0, SlotActionType.SWAP, player);
+        mc.interactionManager.clickSlot(container.syncId, slotNum, 0, SlotActionType.SWAP, player);
     }
 
     private static void swapToolToHand(int slotNumber, MinecraftClient mc)
@@ -881,7 +1168,7 @@ public class InventoryUtils
                 return currentHotbarSlot;
             }
 
-            if ((stack.getItem() instanceof ToolItem) == false)
+            if ((stack.getItem() instanceof MiningToolItem) == false)
             {
                 nonTool = currentHotbarSlot;
             }
@@ -896,7 +1183,7 @@ public class InventoryUtils
                 return hotbarSlot;
             }
 
-            if (nonTool == -1 && (stack.getItem() instanceof ToolItem) == false)
+            if (nonTool == -1 && (stack.getItem() instanceof MiningToolItem) == false)
             {
                 nonTool = hotbarSlot;
             }
@@ -920,6 +1207,7 @@ public class InventoryUtils
             if (fi.dy.masa.malilib.util.InventoryUtils.isRegularInventorySlot(slot.id, false) &&
                 ItemStack.areItemsEqual(stackSlot, stackReference) &&
                 stackSlot.getMaxDamage() - stackSlot.getDamage() >= minDurabilityLeft &&
+                //hasSameOrBetterToolEnchantments(stackReference, stackSlot))
                 hasSameIshEnchantments(stackReference, stackSlot))
             {
                 return slot.id;
@@ -931,18 +1219,18 @@ public class InventoryUtils
 
     private static boolean hasSameIshEnchantments(ItemStack stackReference, ItemStack stack)
     {
-        int level = EnchantmentHelper.getLevel(Enchantments.SILK_TOUCH, stackReference);
+        int level = getEnchantmentLevel(stackReference, Enchantments.SILK_TOUCH);
 
         if (level > 0)
         {
-            return EnchantmentHelper.getLevel(Enchantments.SILK_TOUCH, stack) >= level;
+            return getEnchantmentLevel(stack, Enchantments.SILK_TOUCH) >= level;
         }
 
-        level = EnchantmentHelper.getLevel(Enchantments.FORTUNE, stackReference);
+        level = getEnchantmentLevel(stackReference, Enchantments.FORTUNE);
 
         if (level > 0)
         {
-            return EnchantmentHelper.getLevel(Enchantments.FORTUNE, stack) >= level;
+            return getEnchantmentLevel(stack, Enchantments.FORTUNE) >= level;
         }
 
         return true;
@@ -969,7 +1257,7 @@ public class InventoryUtils
 
                 if (speed > 1.0f)
                 {
-                    int effLevel = EnchantmentHelper.getLevel(Enchantments.EFFICIENCY, stack);
+                    int effLevel = getEnchantmentLevel(stack, Enchantments.EFFICIENCY);
 
                     if (effLevel > 0)
                     {
@@ -1074,15 +1362,15 @@ public class InventoryUtils
             return;
         }
 
-        double reach = mc.interactionManager.getReachDistance();
+        double reach = mc.player.getBlockInteractionRange();
         boolean isCreative = player.isCreative();
-        HitResult trace = player.raycast(reach, mc.getTickDelta(), false);
+        HitResult trace = player.raycast(reach, mc.getRenderTickCounter().getTickDelta(false), false);
 
         if (trace != null && trace.getType() == HitResult.Type.BLOCK)
         {
             BlockPos pos = ((BlockHitResult) trace).getBlockPos();
             BlockState stateTargeted = world.getBlockState(pos);
-            ItemStack stack = stateTargeted.getBlock().getPickStack(world, pos, stateTargeted);
+            ItemStack stack = ((IMixinAbstractBlock) stateTargeted.getBlock()).tweakeroo_getPickStack(world, pos, stateTargeted, false);
 
             if (stack.isEmpty() == false &&
                 fi.dy.masa.malilib.util.InventoryUtils.areStacksEqual(stack, player.getMainHandStack()) == false)
@@ -1103,7 +1391,7 @@ public class InventoryUtils
 
                 if (isCreative)
                 {
-                    inventory.addPickBlock(stack);
+                    inventory.swapStackWithHotbar(stack);
                     mc.interactionManager.clickCreativeStack(player.getStackInHand(Hand.MAIN_HAND), 36 + inventory.selectedSlot);
                 }
                 else
@@ -1118,39 +1406,5 @@ public class InventoryUtils
                 }
             }
         }
-    }
-
-    public static boolean cleanUpShulkerBoxNBT(ItemStack stack)
-    {
-        boolean changed = false;
-        NbtCompound nbt = stack.getNbt();
-
-        if (nbt != null)
-        {
-            if (nbt.contains("BlockEntityTag", Constants.NBT.TAG_COMPOUND))
-            {
-                NbtCompound tag = nbt.getCompound("BlockEntityTag");
-
-                if (tag.contains("Items", Constants.NBT.TAG_LIST) &&
-                    tag.getList("Items", Constants.NBT.TAG_COMPOUND).size() == 0)
-                {
-                    tag.remove("Items");
-                    changed = true;
-                }
-
-                if (tag.isEmpty())
-                {
-                    nbt.remove("BlockEntityTag");
-                }
-            }
-
-            if (nbt.isEmpty())
-            {
-                stack.setNbt(null);
-                changed = true;
-            }
-        }
-
-        return changed;
     }
 }

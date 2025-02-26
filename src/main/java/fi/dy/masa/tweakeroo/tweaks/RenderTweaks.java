@@ -8,29 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 
-import org.joml.Matrix4f;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import fi.dy.masa.malilib.util.Color4f;
-import fi.dy.masa.malilib.util.InfoUtils;
-import fi.dy.masa.malilib.util.restrictions.UsageRestriction.ListType;
-import fi.dy.masa.tweakeroo.Tweakeroo;
-import fi.dy.masa.tweakeroo.config.Configs;
-import fi.dy.masa.tweakeroo.config.FeatureToggle;
-import fi.dy.masa.tweakeroo.config.Hotkeys;
-import fi.dy.masa.tweakeroo.items.ItemList;
-import fi.dy.masa.tweakeroo.mixin.MixinPistonBlock;
-import fi.dy.masa.tweakeroo.renderer.OverlayRenderer;
-import fi.dy.masa.tweakeroo.renderer.RenderUtils;
-import fi.dy.masa.tweakeroo.util.IMixinWindow;
-import fi.dy.masa.tweakeroo.util.MiscUtils;
-import fi.dy.masa.tweakeroo.world.FakeChunk;
-import fi.dy.masa.tweakeroo.world.FakeWorld;
 import net.minecraft.block.AbstractChestBlock;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BarrelBlock;
@@ -39,6 +24,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.BrewingStandBlock;
 import net.minecraft.block.ChestBlock;
+import net.minecraft.block.CrafterBlock;
 import net.minecraft.block.CraftingTableBlock;
 import net.minecraft.block.DispenserBlock;
 import net.minecraft.block.DropperBlock;
@@ -50,13 +36,17 @@ import net.minecraft.block.entity.ShulkerBoxBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.block.piston.PistonHandler;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer.TextLayerType;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.render.debug.DebugRenderer;
 import net.minecraft.client.util.Window;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.mob.ShulkerEntity;
@@ -69,41 +59,60 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.AffineTransformation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.profiler.Profiler;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import fi.dy.masa.malilib.util.InfoUtils;
+import fi.dy.masa.malilib.util.Color4f;
+import fi.dy.masa.malilib.util.restrictions.UsageRestriction;
+import fi.dy.masa.tweakeroo.Reference;
+import fi.dy.masa.tweakeroo.Tweakeroo;
+import fi.dy.masa.tweakeroo.config.Configs;
+import fi.dy.masa.tweakeroo.config.FeatureToggle;
+import fi.dy.masa.tweakeroo.config.Hotkeys;
+import fi.dy.masa.tweakeroo.items.ItemList;
+import fi.dy.masa.tweakeroo.mixin.block.IMixinPistonBlock;
+import fi.dy.masa.tweakeroo.renderer.RenderUtils;
+import fi.dy.masa.tweakeroo.util.IMixinWindow;
+import fi.dy.masa.tweakeroo.util.MiscUtils;
+import fi.dy.masa.tweakeroo.world.FakeChunk;
+import fi.dy.masa.tweakeroo.world.FakeWorld;
+
+/**
+ * Copied From Tweak Fork by Andrew54757
+ */
 public class RenderTweaks {
-
-    private static ConcurrentHashMap<Long, ListMapEntry> SELECTIVE_BLACKLIST = new ConcurrentHashMap<Long, ListMapEntry>();
-    private static ConcurrentHashMap<Long, ListMapEntry> SELECTIVE_WHITELIST = new ConcurrentHashMap<Long, ListMapEntry>();
-
-    private static ConcurrentHashMap<Long, ListMapEntry> CACHED_LIST = new ConcurrentHashMap<Long, ListMapEntry>();
+    private static final ConcurrentHashMap<Long, ListMapEntry> SELECTIVE_BLACKLIST = new ConcurrentHashMap<Long, ListMapEntry>();
+    private static final ConcurrentHashMap<Long, ListMapEntry> SELECTIVE_WHITELIST = new ConcurrentHashMap<Long, ListMapEntry>();
+    private static final ConcurrentHashMap<Long, ListMapEntry> CACHED_LIST = new ConcurrentHashMap<Long, ListMapEntry>();
 
     public static final int PASSTHROUGH = 1024;
 
-    private static Color4f colorPos1 = new Color4f(1f, 0.0625f, 0.0625f);
-    private static Color4f colorPos2 = new Color4f(0.0625f, 0.0625f, 1f);
-    private static Color4f sideColor = Color4f.fromColor(0x30FFFFFF);
-    private static Color4f colorOverlapping = new Color4f(1f, 0.0625f, 1f);
-    private static Color4f colorX = new Color4f(1f, 0.25f, 0.25f);
-    private static Color4f colorY = new Color4f(0.25f, 1f, 0.25f);
-    private static Color4f colorZ = new Color4f(0.25f, 0.25f, 1f);
-    private static Color4f colorLooking = new Color4f(1.0f, 1.0f, 1.0f, 0.6f);
-    private static Color4f colorWhitelist = new Color4f(0.1f, 0.7f, 0.1f, 0.25f);
-    private static Color4f colorBlacklist = new Color4f(0.7f, 0.1f, 0.1f, 0.25f);
+    private static final Color4f colorPos1 = new Color4f(1f, 0.0625f, 0.0625f);
+    private static final Color4f colorPos2 = new Color4f(0.0625f, 0.0625f, 1f);
+    private static final Color4f sideColor = Color4f.fromColor(0x30FFFFFF);
+    private static final Color4f colorOverlapping = new Color4f(1f, 0.0625f, 1f);
+    private static final Color4f colorX = new Color4f(1f, 0.25f, 0.25f);
+    private static final Color4f colorY = new Color4f(0.25f, 1f, 0.25f);
+    private static final Color4f colorZ = new Color4f(0.25f, 0.25f, 1f);
+    private static final Color4f colorLooking = new Color4f(1.0f, 1.0f, 1.0f, 0.6f);
+    private static final Color4f colorWhitelist = new Color4f(0.1f, 0.7f, 0.1f, 0.25f);
+    private static final Color4f colorBlacklist = new Color4f(0.7f, 0.1f, 0.1f, 0.25f);
     private static Color4f colorSearch = new Color4f(0.9f, 0f, 0.7f, 0.25f);
 
     public static Selection AREA_SELECTION = new Selection();
-
     public static BlockPos posLookingAt = null;
-
-    public static Framebuffer endframebuffer = new SimpleFramebuffer(1, 1, true, MinecraftClient.IS_SYSTEM_MAC);
+    public static Framebuffer endframebuffer = new SimpleFramebuffer(1, 1, true);
 
     public static ConcurrentHashMap<Long, ContainerEntry> CONTAINERCACHE = new ConcurrentHashMap<Long, ContainerEntry>();
     public static ArrayList<ContainerEntry> CONTAINERS_WAITING = new ArrayList<ContainerEntry>();
@@ -113,13 +122,27 @@ public class RenderTweaks {
     private static int CURRENT_SYNC_ID = -1;
     private static HashMap<Long, ArrayList<Item>> CACHED_OVERLAY_DATA = new HashMap<Long, ArrayList<Item>>();
 
-    private static ListType previousType = (ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue();
+    private static UsageRestriction.ListType previousType = (UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE
+            .getOptionListValue();
     private static boolean previousSelectiveToggle = FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDERING.getBooleanValue();
 
+    private static DynamicRegistryManager.Immutable dynamicRegistryManager;
     private static FakeWorld fakeWorld = null;
 
-    public static void resetWorld(DynamicRegistryManager registryManager, int loadDistance) {
-        fakeWorld = new FakeWorld(registryManager, loadDistance);
+    public static void setDynamicRegistryManager(@Nullable DynamicRegistryManager.Immutable immutable) {
+        if (immutable == null) {
+            return;
+        }
+
+        dynamicRegistryManager = immutable;
+    }
+
+    public static DynamicRegistryManager.Immutable getDynamicRegistryManager() {
+        return dynamicRegistryManager;
+    }
+
+    public static void resetWorld(int loadDistance) {
+        fakeWorld = new FakeWorld(dynamicRegistryManager, loadDistance);
     }
 
     public static FakeWorld getFakeWorld() {
@@ -155,7 +178,7 @@ public class RenderTweaks {
 
             onDesync();
         }
-        int reach = Math.min((int) mc.interactionManager.getReachDistance(), 6);
+        int reach = Math.min((int) mc.player.getBlockInteractionRange(), 6);
         BlockPos.Mutable tempPos = new BlockPos.Mutable();
         BlockPos playerPos = MiscUtils.getPlayerHeadPos(mc.player);
         CURRENT_CONTAINER = 0;
@@ -190,9 +213,9 @@ public class RenderTweaks {
                         ShulkerBoxBlockEntity lv1 = (ShulkerBoxBlockEntity) blockEntity;
                         boolean flag;
                         if (lv1.getAnimationStage() == ShulkerBoxBlockEntity.AnimationStage.CLOSED) {
-                            flag = mc.world.isSpaceEmpty(ShulkerEntity
-                                    .calculateBoundingBox((Direction) state.get(ShulkerBoxBlock.FACING), 0.0F, 0.5F)
-                                    .offset(tempPos).contract(1.0E-6D));
+                            Box box = ShulkerEntity.calculateBoundingBox(1.0F, state.get(ShulkerBoxBlock.FACING), 0.0F,
+                                    0.5F, tempPos.toBottomCenterPos()).contract(1.0E-6);
+                            flag = mc.world.isSpaceEmpty(box);
                         } else {
                             flag = true;
                         }
@@ -230,10 +253,11 @@ public class RenderTweaks {
         return Math.max(0, (currentHeight - newHeight));
     }
 
-    public static void render(MatrixStack matrices) {
+    public static void render(Profiler profiler) {
         MinecraftClient mc = MinecraftClient.getInstance();
         float expand = 0.001f;
         float lineWidthBlockBox = 2f;
+        Matrix4fStack globalStack = RenderSystem.getModelViewStack();
 
         if (FeatureToggle.TWEAK_CONTAINER_SCAN.getBooleanValue()) {
             scanContainersNearby();
@@ -242,7 +266,7 @@ public class RenderTweaks {
                 || (FeatureToggle.TWEAK_CONTAINER_SCAN.getBooleanValue()
                         && !Configs.Disable.DISABLE_CONTAINER_SCAN_OUTLINES.getBooleanValue())) {
 
-            matrices.push();
+            globalStack.pushMatrix();
             fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
             fi.dy.masa.malilib.render.RenderUtils.setupBlend();
             RenderSystem.disableDepthTest();
@@ -255,21 +279,21 @@ public class RenderTweaks {
             RenderSystem.polygonOffset(-1.2f, -0.2f);
 
             if (!Configs.Disable.DISABLE_CONTAINER_SCAN_OUTLINES.getBooleanValue())
-                renderUnknownContainerBoxes(matrices);
+                renderUnknownContainerBoxes();
 
             if (FeatureToggle.TWEAK_CONTAINER_SCAN_COUNTS.getBooleanValue())
-                renderContainerBoxesInfo(matrices);
+                renderContainerBoxesInfo();
 
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
-            matrices.pop();
+            globalStack.popMatrix();
             // RenderSystem.enableTexture();
 
         }
 
         if (CACHED_OVERLAY_DATA.size() > 0) {
 
-            matrices.push();
+            globalStack.pushMatrix();
             fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
             fi.dy.masa.malilib.render.RenderUtils.setupBlend();
             RenderSystem.disableDepthTest();
@@ -281,23 +305,25 @@ public class RenderTweaks {
             RenderSystem.enablePolygonOffset();
             RenderSystem.polygonOffset(-1.2f, -0.2f);
 
-            renderSearchedContainerBoxes(matrices);
-
-            renderSearchedContainerIcons(matrices);
+            renderSearchedContainerBoxes();
 
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
-            matrices.pop();
+            globalStack.popMatrix();
             // RenderSystem.enableTexture();
 
         }
         if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()
                 || FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDER_OUTLINE.getBooleanValue()) {
 
-            if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue())
+            if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()) {
                 updateLookingAt();
+            }
 
-            matrices.push();
+            profiler.push(Reference.MOD_ID + "_render_tweaks");
+
+            globalStack.pushMatrix();
+            // matrices.push();
             fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
             fi.dy.masa.malilib.render.RenderUtils.setupBlend();
             RenderSystem.disableDepthTest();
@@ -310,107 +336,38 @@ public class RenderTweaks {
             RenderSystem.polygonOffset(-1.2f, -0.2f);
 
             if (FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDER_OUTLINE.getBooleanValue()) {
-                renderLists(matrices);
+                renderLists(profiler);
             }
             if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()) {
                 if (posLookingAt != null) {
                     RenderUtils.renderBlockOutline(posLookingAt, expand, lineWidthBlockBox, colorLooking, mc);
                 }
-                renderSelection(matrices, AREA_SELECTION);
+                renderSelection(profiler, AREA_SELECTION);
             }
 
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
-            matrices.pop();
+            // matrices.pop();
+            globalStack.popMatrix();
             // RenderSystem.enableTexture();
             RenderSystem.depthMask(true);
-
+            profiler.pop();
         }
-
     }
 
-    private static void renderContainerBoxesInfo(MatrixStack matrices) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        String fullIndicator = Formatting.GREEN + " •";
-        for (ContainerEntry entry : CONTAINERCACHE.values()) {
-            if (entry.status == 2) { // TODO && !CACHED_OVERLAY_DATA.containsKey(entry.pos.asLong()) -> when icons
-                                     // are done
-
-                if (entry.itemCount < Configs.Generic.CONTAINER_SCAN_MIN_ITEMS.getIntegerValue()
-                        || entry.typeCount < Configs.Generic.CONTAINER_SCAN_MIN_TYPES.getIntegerValue()) {
-                    if (MiscUtils.isInReach(entry.pos, mc.player, 10)) {
-                        if (entry.itemCount == 0) {
-                            OverlayRenderer.drawString("Empty", entry.pos, sideColor.intValue, -0.5F);
-                        } else {
-                            OverlayRenderer.drawString(entry.itemCount + " items" + (entry.isFull ? " •" : ""),
-                                    entry.pos, sideColor.intValue, -0.5F);
-                            OverlayRenderer.drawString(entry.typeCount + " types" + (entry.areSlotsCovered ? " •" : ""),
-                                    entry.pos, sideColor.intValue, 0.5F);
-                        }
-                    }
-                    continue;
-                }
-
-                OverlayRenderer.drawString(entry.itemCount + " items" + (entry.isFull ? fullIndicator : ""), entry.pos,
-                        Formatting.GOLD.getColorValue(), -0.5F);
-                OverlayRenderer.drawString(entry.typeCount + " types" + (entry.areSlotsCovered ? fullIndicator : ""),
-                        entry.pos, Formatting.GOLD.getColorValue(), 0.5F);
-
-            }
-
-        }
-
-    }
-
-    private static void renderLists(MatrixStack matrices) {
+    private static void renderLists(Profiler profiler) {
         float expand = 0.001f;
         float lineWidthBlockBox = 2f;
         MinecraftClient mc = MinecraftClient.getInstance();
 
+        profiler.push("lists");
         for (ListMapEntry entry : SELECTIVE_BLACKLIST.values()) {
             RenderUtils.renderBlockOutline(entry.currentPosition, expand, lineWidthBlockBox, colorBlacklist, mc);
         }
         for (ListMapEntry entry : SELECTIVE_WHITELIST.values()) {
             RenderUtils.renderBlockOutline(entry.currentPosition, expand, lineWidthBlockBox, colorWhitelist, mc);
         }
-    }
-
-    private static void renderUnknownContainerBoxes(MatrixStack matrices) {
-        float expand = 0.001f;
-        float lineWidthBlockBox = 2f;
-        MinecraftClient mc = MinecraftClient.getInstance();
-
-        for (ContainerEntry entry : CONTAINERCACHE.values()) {
-            if (entry.status == 0) {
-                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorWhitelist, mc);
-            } else if (entry.status == 3) {
-                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorBlacklist, mc);
-            } else if (entry.status == 1) {
-                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorOverlapping, mc);
-            }
-        }
-    }
-
-    private static void renderSearchedContainerBoxes(MatrixStack matrices) {
-        float expand = 0.001f;
-        MinecraftClient mc = MinecraftClient.getInstance();
-
-        for (Entry<Long, ArrayList<Item>> entry : CACHED_OVERLAY_DATA.entrySet()) {
-            BlockPos pos = BlockPos.fromLong(entry.getKey());
-            RenderUtils.renderBlockOutline(pos, expand, 8, colorSearch,
-                    mc);
-            RenderUtils.renderAreaSides(pos, pos, colorSearch, matrices, mc);
-        }
-
-    }
-
-    private static void renderSearchedContainerIcons(MatrixStack matrices) { // TODO figure out item icon rendering
-        /*
-         * MinecraftClient mc = MinecraftClient.getInstance();
-         * 
-         * for (Entry<Long, ArrayList<Item>> entry : CACHED_OVERLAY_DATA.entrySet()) { }
-         * 
-         */
+        profiler.pop();
     }
 
     public static void updateLookingAt() {
@@ -420,16 +377,18 @@ public class RenderTweaks {
             posLookingAt = ((BlockHitResult) mc.crosshairTarget).getBlockPos();
 
             // use offset
-            if (Hotkeys.AREA_SELECTION_OFFSET.getKeybind().isKeybindHeld())
+            if (Hotkeys.AREA_SELECTION_OFFSET.getKeybind().isKeybindHeld()) {
                 posLookingAt = posLookingAt.offset(((BlockHitResult) mc.crosshairTarget).getSide());
+            }
         } else {
             posLookingAt = null;
         }
     }
 
     public static void select(boolean pos2) {
-        if (posLookingAt == null)
+        if (posLookingAt == null) {
             return;
+        }
         if (pos2) {
             AREA_SELECTION.pos2 = posLookingAt;
         } else {
@@ -451,22 +410,24 @@ public class RenderTweaks {
 
     public static void addSelectionToList() {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc == null || mc.world == null)
+        if (mc == null || mc.world == null) {
             return;
+        }
         if (AREA_SELECTION.pos1 == null || AREA_SELECTION.pos2 == null) {
             InfoUtils.printActionbarMessage("Please set an area first");
             return;
         }
-        ListType type = (ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue();
+        UsageRestriction.ListType type = (UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE
+                .getOptionListValue();
 
-        if (type == ListType.NONE) {
+        if (type == UsageRestriction.ListType.NONE) {
             InfoUtils.printActionbarMessage("No list selected");
             return;
         }
 
         Iterator<BlockPos> iterator = BlockPos.iterate(AREA_SELECTION.pos1, AREA_SELECTION.pos2).iterator();
         int count = 0;
-        ConcurrentHashMap<Long, ListMapEntry> list = (type == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+        ConcurrentHashMap<Long, ListMapEntry> list = (type == UsageRestriction.ListType.WHITELIST) ? SELECTIVE_WHITELIST
                 : SELECTIVE_BLACKLIST;
 
         while (iterator.hasNext()) {
@@ -483,32 +444,26 @@ public class RenderTweaks {
         InfoUtils.printActionbarMessage("Added " + count + " blocks");
     }
 
-    public static void showPos(BlockPos pos) {
-
-    }
-
-    public static void hidePos(BlockPos pos) {
-
-    }
-
     public static void removeSelectionFromList() {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc == null || mc.world == null)
+        if (mc == null || mc.world == null) {
             return;
+        }
         if (AREA_SELECTION.pos1 == null || AREA_SELECTION.pos2 == null) {
             InfoUtils.printActionbarMessage("Please set an area first");
             return;
         }
-        ListType type = (ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue();
+        UsageRestriction.ListType type = (UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE
+                .getOptionListValue();
 
-        if (type == ListType.NONE) {
+        if (type == UsageRestriction.ListType.NONE) {
             InfoUtils.printActionbarMessage("No list selected");
             return;
         }
 
         Iterator<BlockPos> iterator = BlockPos.iterate(AREA_SELECTION.pos1, AREA_SELECTION.pos2).iterator();
         int count = 0;
-        ConcurrentHashMap<Long, ListMapEntry> list = (type == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+        ConcurrentHashMap<Long, ListMapEntry> list = (type == UsageRestriction.ListType.WHITELIST) ? SELECTIVE_WHITELIST
                 : SELECTIVE_BLACKLIST;
 
         while (iterator.hasNext()) {
@@ -524,7 +479,7 @@ public class RenderTweaks {
     }
 
     // From litematica
-    public static void renderSelection(MatrixStack matrices, Selection selection) {
+    public static void renderSelection(Profiler profiler, Selection selection) {
 
         BlockPos pos1 = selection.pos1;
         BlockPos pos2 = selection.pos2;
@@ -537,17 +492,19 @@ public class RenderTweaks {
 
         MinecraftClient mc = MinecraftClient.getInstance();
 
+        profiler.push("selection");
+
         if (pos1 != null && pos2 != null) {
             if (pos1.equals(pos2) == false) {
                 RenderUtils.renderAreaOutlineNoCorners(pos1, pos2, lineWidthArea, colorX, colorY, colorZ, mc);
 
-                RenderUtils.renderAreaSides(pos1, pos2, sideColor, matrices, mc);
+                RenderUtils.renderAreaSides(pos1, pos2, sideColor, mc);
 
                 RenderUtils.renderBlockOutline(pos1, expand, lineWidthBlockBox, colorPos1, mc);
                 RenderUtils.renderBlockOutline(pos2, expand, lineWidthBlockBox, colorPos2, mc);
             } else {
                 RenderUtils.renderBlockOutlineOverlapping(pos1, expand, lineWidthBlockBox, colorPos1, colorPos2,
-                        colorOverlapping, matrices, mc);
+                        colorOverlapping, mc);
             }
         } else {
             if (pos1 != null) {
@@ -562,15 +519,16 @@ public class RenderTweaks {
     }
 
     public static void onPistonEvent(BlockState state, World world, BlockPos pos, int type, int data) {
-
         if (!Configs.Generic.SELECTIVE_BLOCKS_TRACK_PISTONS.getBooleanValue()
                 || (!FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDERING.getBooleanValue()
                         && !FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDER_OUTLINE.getBooleanValue())
-                || (SELECTIVE_WHITELIST.size() == 0 && SELECTIVE_BLACKLIST.size() == 0))
+                || (SELECTIVE_WHITELIST.size() == 0 && SELECTIVE_BLACKLIST.size() == 0)) {
             return;
+        }
 
-        if (type == 2)
+        if (type == 2) {
             return;
+        }
 
         Direction pushDirection = Direction.byId(data & 7);
 
@@ -580,8 +538,9 @@ public class RenderTweaks {
         BlockEntity entity = null;
         BlockEntity entity2 = null;
 
-        if (type != 0 && !((MixinPistonBlock) state.getBlock()).getSticky())
+        if (type != 0 && !((IMixinPistonBlock) state.getBlock()).getSticky()) {
             return; // non sticky pistons do nothing
+        }
 
         if (type != 0) {
 
@@ -667,15 +626,17 @@ public class RenderTweaks {
 
             for (ListMapEntry p : toMoveWhitelist) {
                 p.currentPosition = p.currentPosition.offset(pushDirection, (type == 0) ? 1 : -1);
-                if (SELECTIVE_WHITELIST.containsKey(p.currentPosition.asLong()))
+                if (SELECTIVE_WHITELIST.containsKey(p.currentPosition.asLong())) {
                     p.preserve = true;
+                }
                 SELECTIVE_WHITELIST.put(p.currentPosition.asLong(), p);
             }
 
             for (ListMapEntry p : toMoveBlacklist) {
                 p.currentPosition = p.currentPosition.offset(pushDirection, (type == 0) ? 1 : -1);
-                if (SELECTIVE_BLACKLIST.containsKey(p.currentPosition.asLong()))
+                if (SELECTIVE_BLACKLIST.containsKey(p.currentPosition.asLong())) {
                     p.preserve = true;
+                }
                 SELECTIVE_BLACKLIST.put(p.currentPosition.asLong(), p);
             }
 
@@ -699,7 +660,7 @@ public class RenderTweaks {
             return true;
         }
 
-        switch ((ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue()) {
+        switch ((UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue()) {
             case NONE:
                 return true;
             case WHITELIST:
@@ -718,22 +679,27 @@ public class RenderTweaks {
         putMapFromString(SELECTIVE_WHITELIST, Configs.Lists.SELECTIVE_BLOCKS_WHITELIST.getStringValue());
 
         reloadSelective();
-
     }
 
     public static void updateSelectiveAtPos(BlockPos pos) {
         MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.world == null) {
+            return;
+        }
         BlockState state = mc.world.getBlockState(pos);
+
         if (RenderTweaks.isPositionValidForRendering(pos)) {
             if (state.isAir()) {
                 BlockState originalState = fakeWorld.getBlockState(pos);
+
                 if (!originalState.isAir()) {
                     BlockEntity be = fakeWorld.getBlockEntity(pos);
                     fakeWorld.setBlockState(pos, Blocks.AIR.getDefaultState());
                     mc.world.setBlockState(pos, originalState,
                             Block.NOTIFY_ALL | Block.FORCE_STATE | PASSTHROUGH);
-                    if (be != null)
+                    if (be != null) {
                         mc.world.addBlockEntity(be);
+                    }
                 }
             }
         } else {
@@ -747,20 +713,19 @@ public class RenderTweaks {
     }
 
     public static void reloadSelective() {
-        MinecraftClient.getInstance().execute(() -> {
-            reloadSelectiveInternal();
-        });
+        MinecraftClient.getInstance().execute(RenderTweaks::reloadSelectiveInternal);
     }
 
     public static void reloadSelectiveInternal() {
-
         MinecraftClient mc = MinecraftClient.getInstance();
-        ListType listtype = (ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue();
+        UsageRestriction.ListType listtype = (UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE
+                .getOptionListValue();
         boolean toggle = FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDERING.getBooleanValue();
         if (mc.world == null) {
             CACHED_LIST.clear();
-            if (listtype != ListType.NONE) {
-                ConcurrentHashMap<Long, ListMapEntry> list = (listtype == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+            if (listtype != UsageRestriction.ListType.NONE) {
+                ConcurrentHashMap<Long, ListMapEntry> list = (listtype == UsageRestriction.ListType.WHITELIST)
+                        ? SELECTIVE_WHITELIST
                         : SELECTIVE_BLACKLIST;
                 Iterator<ListMapEntry> iterator = list.values().iterator();
                 while (iterator.hasNext()) {
@@ -792,10 +757,11 @@ public class RenderTweaks {
                         for (int i = 0; i < sections.length; i++) {
                             ChunkSection section = sections[i];
                             if (!section.isEmpty() || !fakeSections[i].isEmpty()) {
+                                int cy = fakeWorld.sectionIndexToCoord(i) << 4;
                                 for (int x = 0; x < 16; x++) {
                                     for (int y = 0; y < 16; y++) {
                                         for (int z = 0; z < 16; z++) {
-                                            pos.set(x + cpos.getStartX(), y + fakeWorld.sectionIndexToCoord(i),
+                                            pos.set(x + cpos.getStartX(), y + cy,
                                                     z + cpos.getStartZ());
                                             updateSelectiveAtPos(pos);
                                         }
@@ -808,8 +774,9 @@ public class RenderTweaks {
             }
 
             CACHED_LIST.clear();
-            if (listtype != ListType.NONE) {
-                ConcurrentHashMap<Long, ListMapEntry> list = (listtype == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+            if (listtype != UsageRestriction.ListType.NONE) {
+                ConcurrentHashMap<Long, ListMapEntry> list = (listtype == UsageRestriction.ListType.WHITELIST)
+                        ? SELECTIVE_WHITELIST
                         : SELECTIVE_BLACKLIST;
                 Iterator<ListMapEntry> iterator = list.values().iterator();
                 while (iterator.hasNext()) {
@@ -817,8 +784,9 @@ public class RenderTweaks {
                     CACHED_LIST.put(entry.currentPosition.asLong(), entry);
                 }
             }
-        } else if (listtype != ListType.NONE) {
-            ConcurrentHashMap<Long, ListMapEntry> list = (listtype == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+        } else if (listtype != UsageRestriction.ListType.NONE) {
+            ConcurrentHashMap<Long, ListMapEntry> list = (listtype == UsageRestriction.ListType.WHITELIST)
+                    ? SELECTIVE_WHITELIST
                     : SELECTIVE_BLACKLIST;
             Iterator<ListMapEntry> iterator = CACHED_LIST.values().iterator();
             while (iterator.hasNext()) {
@@ -844,21 +812,23 @@ public class RenderTweaks {
     }
 
     public static void onLightUpdateEvent(int chunkX, int chunkZ, CallbackInfo ci) {
-
         if (true || !FeatureToggle.TWEAK_SELECTIVE_BLOCKS_RENDERING.getBooleanValue()) {
             return;
         }
 
-        ListType listtype = (ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE.getOptionListValue();
+        UsageRestriction.ListType listtype = (UsageRestriction.ListType) Configs.Lists.SELECTIVE_BLOCKS_LIST_TYPE
+                .getOptionListValue();
 
-        if (listtype == ListType.NONE) {
+        if (listtype == UsageRestriction.ListType.NONE) {
             return;
         }
+
         MinecraftClient mc = MinecraftClient.getInstance();
         boolean found = false;
         if (mc != null && mc.world != null && mc.world.getLightingProvider() != null) {
 
-            ConcurrentHashMap<Long, ListMapEntry> list = (listtype == ListType.WHITELIST) ? SELECTIVE_WHITELIST
+            ConcurrentHashMap<Long, ListMapEntry> list = (listtype == UsageRestriction.ListType.WHITELIST)
+                    ? SELECTIVE_WHITELIST
                     : SELECTIVE_BLACKLIST;
 
             int minX = chunkX * 16 - 1;
@@ -879,7 +849,6 @@ public class RenderTweaks {
         if (found) {
             ci.cancel();
         }
-
     }
 
     public static void rebuildStrings() {
@@ -894,10 +863,12 @@ public class RenderTweaks {
 
         String[] parts = str.split("\\|");
 
-        for (int i = 0; i < parts.length; i++) {
-            String[] nums = parts[i].split(",");
-            if (nums.length < 3)
+        for (String part : parts) {
+            String[] nums = part.split(",");
+
+            if (nums.length < 3) {
                 continue;
+            }
 
             try {
                 int x = Integer.parseInt(nums[0]);
@@ -908,7 +879,7 @@ public class RenderTweaks {
                 map.put(pos.asLong(), new ListMapEntry(pos, true));
             } catch (NumberFormatException e) {
 
-                Tweakeroo.logger.warn("Error while parsing int: " + e.toString());
+                Tweakeroo.LOGGER.warn("Error while parsing int: {}", e.toString());
             }
         }
     }
@@ -916,7 +887,6 @@ public class RenderTweaks {
     public static String getStringFromMap(ConcurrentHashMap<Long, ListMapEntry> map) {
 
         Iterator<ListMapEntry> iterator = map.values().iterator();
-
         ArrayList<String> entries = new ArrayList<String>();
 
         while (iterator.hasNext()) {
@@ -927,7 +897,15 @@ public class RenderTweaks {
         return String.join("|", entries);
     }
 
-    static class ListMapEntry {
+    public static Color4f getColorSearch() {
+        return colorSearch;
+    }
+
+    public static void setColorSearch(Color4f colorSearch) {
+        RenderTweaks.colorSearch = colorSearch;
+    }
+
+    public static class ListMapEntry {
         public final BlockPos originalPosition;
         public BlockPos currentPosition;
         public boolean preserve = false;
@@ -943,9 +921,40 @@ public class RenderTweaks {
         }
     }
 
-    static class Selection {
+    public static class Selection {
         public BlockPos pos1 = null;
         public BlockPos pos2 = null;
+    }
+
+    public static boolean onOpenScreen(Text name, ScreenHandlerType<?> screenHandlerType, int syncId) {
+        LAST_CHECK = System.currentTimeMillis();
+        if (!FeatureToggle.TWEAK_CONTAINER_SCAN.getBooleanValue())
+            return true;
+        if (CONTAINERS_WAITING.isEmpty() || CONTAINERS_WAITING.size() <= CURRENT_CONTAINER) {
+            // System.out.println("Desync, no containers are being scanned (open screen)");
+            onDesync();
+            return true;
+        }
+
+        CURRENT_SCREEN_TYPE = screenHandlerType;
+        CURRENT_SYNC_ID = syncId;
+        return false;
+    }
+
+    public static void loadFakeChunk(int x, int z) {
+        fakeWorld.getChunkManager().loadChunk(x, z);
+    }
+
+    public static void setFakeBlockState(World realWorld, BlockPos pos, BlockState state, BlockEntity be) {
+        fakeWorld.setBlockState(pos, state, 0);
+        if (be != null) {
+            fakeWorld.addBlockEntity(be);
+            be.setWorld(realWorld);
+        }
+    }
+
+    public static void unloadFakeChunk(int x, int z) {
+        fakeWorld.getChunkManager().unloadChunk(x, z);
     }
 
     public static Object containerScanTweakUpdate() {
@@ -1017,21 +1026,6 @@ public class RenderTweaks {
         }
     }
 
-    public static boolean onOpenScreen(Text name, ScreenHandlerType<?> screenHandlerType, int syncId) {
-        LAST_CHECK = System.currentTimeMillis();
-        if (!FeatureToggle.TWEAK_CONTAINER_SCAN.getBooleanValue())
-            return true;
-        if (CONTAINERS_WAITING.isEmpty() || CONTAINERS_WAITING.size() <= CURRENT_CONTAINER) {
-            // System.out.println("Desync, no containers are being scanned (open screen)");
-            onDesync();
-            return true;
-        }
-
-        CURRENT_SCREEN_TYPE = screenHandlerType;
-        CURRENT_SYNC_ID = syncId;
-        return false;
-    }
-
     public static boolean onInventory(int syncId, List<ItemStack> contents) {
         LAST_CHECK = System.currentTimeMillis();
         if (!FeatureToggle.TWEAK_CONTAINER_SCAN.getBooleanValue())
@@ -1089,6 +1083,9 @@ public class RenderTweaks {
         } else if (CURRENT_SCREEN_TYPE == ScreenHandlerType.CRAFTING) {
             end = 10;
             valid = block instanceof CraftingTableBlock;
+        } else if (CURRENT_SCREEN_TYPE == ScreenHandlerType.CRAFTER_3X3) {
+            end = 9;
+            valid = block instanceof CrafterBlock;
         }
 
         if (!valid) {
@@ -1145,61 +1142,167 @@ public class RenderTweaks {
         scanContainers();
     }
 
-    public static void loadFakeChunk(int x, int z) {
-        fakeWorld.getChunkManager().loadChunk(x, z);
+    /*
+     * This piece of code makes sure that the unused top portion of the screen stays
+     * black.
+     * Normally this is not an issue, but when tweak_standard_aspect_ratio is used
+     * with voxelmap,
+     * it will lead to periodic light flashes in that area, which is super annoying.
+     * 
+     * This piece of code is cannabalized from the code that draws framebuffers.
+     * It took a days work for me to figure this out.
+     */
+    public static void renderCoverEnd() {
+        // MinecraftClient mc = MinecraftClient.getInstance();
+        // Window window = mc.getWindow();
+        // int yOffset = ((IMixinWindow) (Object) window).getYOffset();
+        // if (yOffset == 0)
+        // return;
+
+        // int x = 0;
+        // int y = window.getFramebufferHeight();
+        // int width = window.getFramebufferWidth();
+        // int height = yOffset;
+
+        // endframebuffer.setClearColor(0, 0, 0, 1);
+        // endframebuffer.clear(false);
+        // RenderSystem.assertOnGameThreadOrInit();
+        // GlStateManager._viewport(x, y, width, height);
+
+        // Matrix4f matrix4f = new Matrix4f().setOrtho(0.0f, width, height, 0.0f,
+        // 1000.0f, 3000.0f);
+        // RenderSystem.setProjectionMatrix(matrix4f, VertexSorter.BY_Z);
+        // float f = (float) width;
+        // float g = (float) height;
+        // float h = (float) endframebuffer.viewportWidth / (float)
+        // endframebuffer.textureWidth;
+        // float i = (float) endframebuffer.viewportHeight / (float)
+        // endframebuffer.textureHeight;
+        // Tessellator tessellator = RenderSystem.renderThreadTesselator();
+        // BufferBuilder bufferBuilder = tessellator.getBuffer();
+        // bufferBuilder.begin(VertexFormat.DrawMode.QUADS,
+        // VertexFormats.POSITION_TEXTURE_COLOR);
+        // bufferBuilder.vertex(0.0D, (double) g, 0.0D).texture(0.0F, 0.0F).color(255,
+        // 255, 255, 255).next();
+        // bufferBuilder.vertex((double) f, (double) g, 0.0D).texture(h,
+        // 0.0F).color(255, 255, 255, 255).next();
+        // bufferBuilder.vertex((double) f, 0.0D, 0.0D).texture(h, i).color(255, 255,
+        // 255, 255).next();
+        // bufferBuilder.vertex(0.0D, 0.0D, 0.0D).texture(0.0F, i).color(255, 255, 255,
+        // 255).next();
+        // BufferRenderer.draw(bufferBuilder.end());
     }
 
-    public static void setFakeBlockState(World realWorld, BlockPos pos, BlockState state, BlockEntity be) {
-        fakeWorld.setBlockState(pos, state, 0);
-        if (be != null) {
-            fakeWorld.addBlockEntity(be);
-            be.setWorld(realWorld);
+    private static void renderContainerBoxesInfo() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        String fullIndicator = Formatting.GREEN + " •";
+
+    
+        for (ContainerEntry entry : CONTAINERCACHE.values()) {
+            if (entry.status == 2) { // TODO && !CACHED_OVERLAY_DATA.containsKey(entry.pos.asLong()) -> when icons
+                                     // are done
+
+                if (entry.itemCount < Configs.Generic.CONTAINER_SCAN_MIN_ITEMS.getIntegerValue()
+                        || entry.typeCount < Configs.Generic.CONTAINER_SCAN_MIN_TYPES.getIntegerValue()) {
+                    if (MiscUtils.isInReach(entry.pos, mc.player, 10)) {
+                        if (entry.itemCount == 0) {
+                            drawString("Empty", entry.pos, sideColor.intValue, -0.5F);
+                        } else {
+                            drawString(entry.itemCount + " items" + (entry.isFull ? " •" : ""),
+                                    entry.pos, sideColor.intValue, -0.5F);
+                            drawString(entry.typeCount + " types" + (entry.areSlotsCovered ? " •" : ""),
+                                    entry.pos, sideColor.intValue, 0.5F);
+                        }
+                    }
+                    continue;
+                }
+
+                drawString(entry.itemCount + " items" + (entry.isFull ? fullIndicator : ""),
+                        entry.pos,
+                        Formatting.GOLD.getColorValue(), -0.5F);
+                drawString(entry.typeCount + " types" + (entry.areSlotsCovered ? fullIndicator : ""),
+                        entry.pos, Formatting.GOLD.getColorValue(), 0.5F);
+
+            }
+
+        }
+
+    }
+
+    private static void drawString(String text,
+            BlockPos pos, int color, float line) {
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        MatrixStack matrixStack = new MatrixStack();
+        VertexConsumerProvider.Immediate consumer = client.getBufferBuilders().getEntityVertexConsumers();
+
+        Camera camera = client.gameRenderer.getCamera();
+        double MAX_RENDER_DISTANCE = 256.0D;
+        float FONT_SIZE = 0.02f;
+
+        if (camera.isReady() && client.getEntityRenderDispatcher().gameOptions != null && client.player != null) {
+            double x = (double) pos.getX() + 0.5D;
+            double y = (double) pos.getY() + 0.5D;
+            double z = (double) pos.getZ() + 0.5D;
+            if (client.player.squaredDistanceTo(x, y, z) > MAX_RENDER_DISTANCE * MAX_RENDER_DISTANCE) {
+                return;
+            }
+            double camX = camera.getPos().x;
+            double camY = camera.getPos().y;
+            double camZ = camera.getPos().z;
+
+            matrixStack.push();
+            matrixStack.translate((float) (x - camX), (float) (y - camY), (float) (z - camZ));
+			matrixStack.multiply(camera.getRotation());
+            matrixStack.scale(FONT_SIZE, -FONT_SIZE, FONT_SIZE);
+            RenderSystem.disableDepthTest(); // visibleThroughObjects
+
+            float renderX = -client.textRenderer.getWidth(text) * 0.5F;
+            float renderY = client.textRenderer.getWrappedLinesHeight(text, Integer.MAX_VALUE) * (-0.5F + 1.25F * line);
+           
+            client.textRenderer.draw(text, renderX, renderY, color, false, matrixStack.peek().getPositionMatrix(), consumer,
+                    TextLayerType.SEE_THROUGH, 0, 0xF000F0);
+            consumer.draw();
+
+            RenderSystem.enableDepthTest();
+            matrixStack.pop();
         }
     }
 
-    public static void unloadFakeChunk(int x, int z) {
-        fakeWorld.getChunkManager().unloadChunk(x, z);
+    private static void renderUnknownContainerBoxes() {
+        float expand = 0.001f;
+        float lineWidthBlockBox = 2f;
+        MinecraftClient mc = MinecraftClient.getInstance();
+
+        for (ContainerEntry entry : CONTAINERCACHE.values()) {
+            if (entry.status == 0) {
+                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorWhitelist, mc);
+            } else if (entry.status == 3) {
+                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorBlacklist, mc);
+            } else if (entry.status == 1) {
+                RenderUtils.renderBlockOutline(entry.pos, expand, lineWidthBlockBox, colorOverlapping, mc);
+            }
+        }
     }
 
-    /*
-        This piece of code makes sure that the unused top portion of the screen stays black.
-        Normally this is not an issue, but when tweak_standard_aspect_ratio is used with voxelmap,
-        it will lead to periodic light flashes in that area, which is super annoying.
-
-        This piece of code is cannabalized from the code that draws framebuffers.
-        It took a days work for me to figure this out.
-    */
-    public static void renderCoverEnd() {
+    private static void renderSearchedContainerBoxes() {
+        float expand = 0.001f;
         MinecraftClient mc = MinecraftClient.getInstance();
-        Window window = mc.getWindow();
-        int yOffset = ((IMixinWindow) (Object) window).getYOffset();
-        if (yOffset == 0)
-            return;
 
-            
-        int x = 0;
-        int y = window.getFramebufferHeight();
-        int width = window.getFramebufferWidth();
-        int height = yOffset;
+        for (Entry<Long, ArrayList<Item>> entry : CACHED_OVERLAY_DATA.entrySet()) {
+            BlockPos pos = BlockPos.fromLong(entry.getKey());
+            RenderUtils.renderBlockOutline(pos, expand, 8, colorSearch,
+                    mc);
+            RenderUtils.renderAreaSides(pos, pos, colorSearch, mc);
+        }
 
-        endframebuffer.setClearColor(0, 0, 0, 1);
-        endframebuffer.clear(false);
-        RenderSystem.assertOnGameThreadOrInit();
-        GlStateManager._viewport(x, y, width, height);
+    }
 
-        Matrix4f matrix4f = new Matrix4f().setOrtho(0.0f, width, height, 0.0f, 1000.0f, 3000.0f);
-        RenderSystem.setProjectionMatrix(matrix4f, VertexSorter.BY_Z);
-        float f = (float) width;
-        float g = (float) height;
-        float h = (float) endframebuffer.viewportWidth / (float) endframebuffer.textureWidth;
-        float i = (float) endframebuffer.viewportHeight / (float) endframebuffer.textureHeight;
-        Tessellator tessellator = RenderSystem.renderThreadTesselator();
-        BufferBuilder bufferBuilder = tessellator.getBuffer();
-        bufferBuilder.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-        bufferBuilder.vertex(0.0D, (double) g, 0.0D).texture(0.0F, 0.0F).color(255, 255, 255, 255).next();
-        bufferBuilder.vertex((double) f, (double) g, 0.0D).texture(h, 0.0F).color(255, 255, 255, 255).next();
-        bufferBuilder.vertex((double) f, 0.0D, 0.0D).texture(h, i).color(255, 255, 255, 255).next();
-        bufferBuilder.vertex(0.0D, 0.0D, 0.0D).texture(0.0F, i).color(255, 255, 255, 255).next();
-        BufferRenderer.draw(bufferBuilder.end());
+    public static void showPos(BlockPos pos) {
+
+    }
+
+    public static void hidePos(BlockPos pos) {
+
     }
 }

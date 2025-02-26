@@ -1,20 +1,27 @@
 package fi.dy.masa.tweakeroo.world;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import fi.dy.masa.tweakeroo.Reference;
+import org.jetbrains.annotations.Nullable;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.component.type.MapIdComponent;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.boss.dragon.EnderDragonPart;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.Fluid;
+import net.minecraft.item.FuelRegistry;
 import net.minecraft.item.map.MapState;
+import net.minecraft.particle.ParticleEffect;
+import net.minecraft.recipe.BrewingRecipeRegistry;
 import net.minecraft.recipe.RecipeManager;
-import net.minecraft.registry.BuiltinRegistries;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
@@ -24,12 +31,9 @@ import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.*;
 import net.minecraft.util.profiler.Profiler;
+import net.minecraft.util.profiler.Profilers;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.World;
@@ -42,36 +46,51 @@ import net.minecraft.world.dimension.DimensionTypes;
 import net.minecraft.world.entity.EntityLookup;
 import net.minecraft.world.event.GameEvent;
 import net.minecraft.world.event.GameEvent.Emitter;
+import net.minecraft.world.explosion.ExplosionBehavior;
 import net.minecraft.world.tick.QueryableTickScheduler;
 import net.minecraft.world.tick.TickManager;
 
+import fi.dy.masa.tweakeroo.Reference;
+import fi.dy.masa.tweakeroo.tweaks.RenderTweaks;
+
+/**
+ * Copied From Tweak Fork by Andrew54757
+ */
 public class FakeWorld extends World
 {
-    private static final RegistryKey<World> REGISTRY_KEY = RegistryKey.of(RegistryKeys.WORLD, new Identifier(Reference.MOD_ID, "selective_world"));
+    private static final RegistryKey<World> REGISTRY_KEY = RegistryKey.of(RegistryKeys.WORLD, Identifier.of(Reference.MOD_ID, "selective_world"));
     private static final ClientWorld.Properties LEVEL_INFO = new ClientWorld.Properties(Difficulty.PEACEFUL, false, true);
-    private static final RegistryEntry<DimensionType> DIMENSION_TYPE = BuiltinRegistries.createWrapperLookup().createRegistryLookup().getOrThrow(RegistryKeys.DIMENSION_TYPE).getOrThrow(DimensionTypes.OVERWORLD);
-    
+    private static final RegistryEntry<DimensionType> DIMENSION_TYPE = RenderTweaks.getDynamicRegistryManager().getOptionalEntry(DimensionTypes.OVERWORLD).orElseThrow();
+
     private final MinecraftClient mc;
     private final FakeChunkManager chunkManager;
-    private final DynamicRegistryManager registryManager;
+    private final Supplier<Profiler> profiler;
+    private DynamicRegistryManager registryManager;
 
     public FakeWorld(
-        DynamicRegistryManager registryManager,
-        MutableWorldProperties properties,
-        RegistryEntry<DimensionType> dimension,
-        Supplier<Profiler> supplier,
-        int loadDistance
+            DynamicRegistryManager registryManager,
+            MutableWorldProperties properties,
+            RegistryEntry<DimensionType> dimension,
+            Supplier<Profiler> profiler,
+            int loadDistance
     )
     {
         //MutableWorldProperties properties, RegistryKey<World> registryRef, RegistryEntry<DimensionType> dimension, Supplier<Profiler> profiler, boolean isClient, boolean debugWorld, long seed, int maxChainedNeighborUpdates
-        super(properties, REGISTRY_KEY, registryManager, dimension, supplier, true, false, 0L, 0);
+        super(properties, REGISTRY_KEY, registryManager, dimension, true, true, 0L, 0);
         this.mc = MinecraftClient.getInstance();
         this.registryManager = registryManager;
         this.chunkManager = new FakeChunkManager(this, loadDistance);
+        this.profiler = profiler;
     }
 
-    public FakeWorld(DynamicRegistryManager registryManager, int loadDistance) {
-        this(registryManager, LEVEL_INFO, DIMENSION_TYPE, MinecraftClient.getInstance()::getProfiler, loadDistance);
+    public FakeWorld(DynamicRegistryManager registryManager, int loadDistance)
+    {
+        this(registryManager, LEVEL_INFO, DIMENSION_TYPE, Profilers::get, loadDistance);
+    }
+
+    public Profiler getProfiler()
+    {
+        return this.profiler.get();
     }
 
     public FakeChunkManager getChunkProvider()
@@ -83,6 +102,18 @@ public class FakeWorld extends World
     public FakeChunkManager getChunkManager()
     {
         return this.chunkManager;
+    }
+
+    @Override
+    public void syncWorldEvent(@Nullable PlayerEntity player, int eventId, BlockPos pos, int data)
+    {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public void emitGameEvent(RegistryEntry<GameEvent> event, Vec3d emitterPos, Emitter emitter)
+    {
+        // TODO Auto-generated method stub
     }
 
     @Override
@@ -106,7 +137,7 @@ public class FakeWorld extends World
     @Override
     public boolean setBlockState(BlockPos pos, BlockState newState, int flags)
     {
-        if (pos.getY() < this.getBottomY() || pos.getY() >= this.getTopY())
+        if (pos.getY() < this.getBottomY() || pos.getY() >= this.getTopYInclusive())
         {
             return false;
         }
@@ -157,7 +188,7 @@ public class FakeWorld extends World
     // The following HeightLimitView overrides are to work around an incompatibility with Lithium 0.7.4+
 
     @Override
-    public int getTopY()
+    public int getTopYInclusive()
     {
         return this.getBottomY() + this.getHeight();
     }
@@ -171,7 +202,7 @@ public class FakeWorld extends World
     @Override
     public int getTopSectionCoord()
     {
-        return this.getTopY() >> 4;
+        return this.getTopYInclusive() >> 4;
     }
 
     @Override
@@ -189,7 +220,7 @@ public class FakeWorld extends World
     @Override
     public boolean isOutOfHeightLimit(int y)
     {
-        return (y < this.getBottomY()) || (y >= this.getTopY());
+        return (y < this.getBottomY()) || (y >= this.getTopYInclusive());
     }
 
     @Override
@@ -217,8 +248,26 @@ public class FakeWorld extends World
     }
 
     @Override
-    public DynamicRegistryManager getRegistryManager() {
+    public DynamicRegistryManager getRegistryManager()
+    {
+        if (this.registryManager == null)
+        {
+            this.registryManager = RenderTweaks.getDynamicRegistryManager();
+        }
+
         return this.registryManager;
+    }
+
+    @Override
+    public BrewingRecipeRegistry getBrewingRecipeRegistry()
+    {
+        return null;
+    }
+
+    @Override
+    public FuelRegistry getFuelRegistry()
+    {
+        return null;
     }
 
     @Override
@@ -234,110 +283,123 @@ public class FakeWorld extends World
     }
 
     @Override
-    public void syncWorldEvent(PlayerEntity var1, int var2, BlockPos var3, int var4) {
-        // TODO Auto-generated method stub
-        
-    }
-
-    @Override
-    public void emitGameEvent(GameEvent var1, Vec3d var2, Emitter var3) {
-        // TODO Auto-generated method stub
-        
-    }
-
-    @Override
-    public List<? extends PlayerEntity> getPlayers() {
+    public List<? extends PlayerEntity> getPlayers()
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public RegistryEntry<Biome> getGeneratorStoredBiome(int var1, int var2, int var3) {
+    public RegistryEntry<Biome> getGeneratorStoredBiome(int var1, int var2, int var3)
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public FeatureSet getEnabledFeatures() {
+    public int getSeaLevel()
+    {
+        return 0;
+    }
+
+    @Override
+    public FeatureSet getEnabledFeatures()
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public float getBrightness(Direction var1, boolean var2) {
+    public float getBrightness(Direction var1, boolean var2)
+    {
         // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
-    public void updateListeners(BlockPos var1, BlockState var2, BlockState var3, int var4) {
+    public void updateListeners(BlockPos var1, BlockState var2, BlockState var3, int var4)
+    {
         // TODO Auto-generated method stub
-        
     }
 
     @Override
-    public void playSound(PlayerEntity var1, double var2, double var4, double var6, RegistryEntry<SoundEvent> var8,
-            SoundCategory var9, float var10, float var11, long var12) {
+    public void playSound(@Nullable PlayerEntity source, double x, double y, double z, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed)
+    {
         // TODO Auto-generated method stub
-        
     }
 
     @Override
-    public void playSoundFromEntity(PlayerEntity var1, Entity var2, RegistryEntry<SoundEvent> var3, SoundCategory var4,
-            float var5, float var6, long var7) {
+    public void playSoundFromEntity(@Nullable PlayerEntity source, Entity entity, RegistryEntry<SoundEvent> sound, SoundCategory category, float volume, float pitch, long seed)
+    {
         // TODO Auto-generated method stub
-        
     }
 
     @Override
-    public Entity getEntityById(int var1) {
+    public void createExplosion(@Nullable Entity entity, @Nullable DamageSource damageSource, @Nullable ExplosionBehavior behavior, double x, double y, double z, float power, boolean createFire, ExplosionSourceType explosionSourceType, ParticleEffect smallParticle, ParticleEffect largeParticle, RegistryEntry<SoundEvent> soundEvent)
+    {
         // TODO Auto-generated method stub
-        return null;
     }
 
     @Override
-    public TickManager getTickManager() {
-        return null;
-    }
-
-    @Override
-    public MapState getMapState(String var1) {
+    public Entity getEntityById(int var1)
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void putMapState(String var1, MapState var2) {
-        // TODO Auto-generated method stub
-        
+    public Collection<EnderDragonPart> getEnderDragonParts()
+    {
+        return List.of();
     }
 
     @Override
-    public int getNextMapId() {
-        // TODO Auto-generated method stub
-        return 0;
+    public TickManager getTickManager()
+    {
+        return null;
     }
 
     @Override
-    public void setBlockBreakingInfo(int var1, BlockPos var2, int var3) {
-        // TODO Auto-generated method stub
-        
+    public @Nullable MapState getMapState(MapIdComponent id)
+    {
+        return null;
     }
 
     @Override
-    public Scoreboard getScoreboard() {
+    public void putMapState(MapIdComponent id, MapState state)
+    {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public MapIdComponent increaseAndGetMapId()
+    {
+        return null;
+    }
+
+    @Override
+    public void setBlockBreakingInfo(int var1, BlockPos var2, int var3)
+    {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public Scoreboard getScoreboard()
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public RecipeManager getRecipeManager() {
+    public RecipeManager getRecipeManager()
+    {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    protected EntityLookup<Entity> getEntityLookup() {
+    protected EntityLookup<Entity> getEntityLookup()
+    {
         // TODO Auto-generated method stub
         return null;
     }

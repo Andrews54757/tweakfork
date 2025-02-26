@@ -3,7 +3,6 @@ package fi.dy.masa.tweakeroo.mixin;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -16,10 +15,11 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.util.Window;
-
-
 @Mixin(Window.class)
-public class MixinWindow implements IMixinWindow {
+public abstract class MixinWindow implements IMixinWindow
+{
+    @Shadow public abstract int getWidth();
+    @Shadow public abstract int getHeight();
 
     @Unique
     double targetAspectRatio = 16.0 / 9.0;
@@ -42,6 +42,7 @@ public class MixinWindow implements IMixinWindow {
     @Shadow
     private int width;
 
+    private int newWidth;
 
     @Shadow private int height;
     @Unique
@@ -50,20 +51,17 @@ public class MixinWindow implements IMixinWindow {
     private int originalFramebufferHeight = 1;
 
 
-    
-
+    @Inject(method = "onFramebufferSizeChanged", at=@At("HEAD"))
+    private void onFramebufferSizeChanged(long window, int width, int height, CallbackInfo ci) {
+        newWidth = width;
+    }
 
     @ModifyVariable(method = "onFramebufferSizeChanged", at=@At("HEAD"), ordinal = 1)
     private int tweakfork$offsetWithAspectRatio(int height2) {
-        this.yOffset = RenderTweaks.getHeightOffsetWithAspectRatio(this.targetAspectRatio, this.framebufferWidth, height2);
+        this.yOffset = RenderTweaks.getHeightOffsetWithAspectRatio(this.targetAspectRatio, newWidth, height2);
         this.originalFramebufferHeight = height2;
         return height2 - yOffset;
     }
-
-
-
-
-
 
 
     @Inject(method = "updateFramebufferSize", at = @At("RETURN"))
@@ -114,7 +112,7 @@ public class MixinWindow implements IMixinWindow {
 
             if (scale > 0)
             {
-                cir.setReturnValue((int) Math.ceil((double) width / scale));
+                cir.setReturnValue((int) Math.ceil((double) this.getWidth() / scale));
             }
         }
     }
@@ -129,7 +127,7 @@ public class MixinWindow implements IMixinWindow {
 
             if (scale > 0)
             {
-                cir.setReturnValue((int) Math.ceil((double) height / scale));
+                cir.setReturnValue((int) Math.ceil((double) this.getHeight() / scale));
             }
         }
     }

@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.world.HeightLimitView;
 import fi.dy.masa.tweakeroo.config.Configs;
+import fi.dy.masa.tweakeroo.config.FeatureToggle;
 
 @Mixin(ClientWorld.Properties.class)
 public class MixinClientWorld_Properties
@@ -19,6 +20,13 @@ public class MixinClientWorld_Properties
         if (Configs.Disable.DISABLE_SKY_DARKNESS.getBooleanValue())
         {
             cir.setReturnValue(world.getBottomY() - 2.0);
+        }
+    }
+
+    @Inject(method = "getTimeOfDay", at = @At("HEAD"), cancellable = true)
+    private void timeOfDayOverride(CallbackInfoReturnable<Long> ci) {
+        if (FeatureToggle.TWEAK_DAY_CYCLE_OVERRIDE.getBooleanValue()) {
+            ci.setReturnValue((long) Configs.Generic.DAY_CYCLE_OVERRIDE_TIME.getIntegerValue());
         }
     }
 }

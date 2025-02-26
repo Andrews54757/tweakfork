@@ -8,20 +8,26 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.WorldChunk;
 
-public class FakeChunk extends WorldChunk {
+/**
+ * Copied From Tweak Fork by Andrew54757
+ */
+public class FakeChunk extends WorldChunk
+{
     private static final BlockState AIR = Blocks.AIR.getDefaultState();
     private final int bottomY;
     private final int topY;
     private boolean isEmpty = true;
-    
-    public FakeChunk(FakeWorld world, ChunkPos pos) {
+
+    public FakeChunk(FakeWorld world, ChunkPos pos)
+    {
         super(world, pos);
         this.bottomY = world.getBottomY();
-        this.topY = world.getTopY();
+        this.topY = world.getTopYInclusive();
     }
 
     @Override
-    public BlockState getBlockState(BlockPos pos) {
+    public BlockState getBlockState(BlockPos pos)
+    {
         int x = pos.getX() & 0xF;
         int y = pos.getY();
         int z = pos.getZ() & 0xF;
@@ -38,13 +44,13 @@ public class FakeChunk extends WorldChunk {
             {
                 return chunkSection.getBlockState(x, y, z);
             }
-         }
+        }
 
-         return AIR;
+        return AIR;
     }
 
     @Override
-    public BlockState setBlockState(BlockPos pos, BlockState state, boolean isMoving)
+    public BlockState setBlockState(BlockPos pos, BlockState state, boolean flags)
     {
         BlockState stateOld = this.getBlockState(pos);
         int y = pos.getY();
@@ -81,7 +87,7 @@ public class FakeChunk extends WorldChunk {
             {
                 this.getWorld().removeBlockEntity(pos);
             }
-          
+
             if (section.getBlockState(x, y, z).getBlock() != blockNew)
             {
                 return null;
@@ -109,7 +115,6 @@ public class FakeChunk extends WorldChunk {
         }
     }
 
-    
 
     @Override
     public boolean isEmpty()

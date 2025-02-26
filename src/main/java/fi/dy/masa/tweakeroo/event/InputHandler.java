@@ -10,19 +10,17 @@ import net.minecraft.client.option.GameOptions;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Hand;
+import net.minecraft.util.PlayerInput;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
+
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.hotkeys.IHotkey;
-import fi.dy.masa.malilib.hotkeys.IKeybindManager;
-import fi.dy.masa.malilib.hotkeys.IKeybindProvider;
-import fi.dy.masa.malilib.hotkeys.IKeyboardInputHandler;
-import fi.dy.masa.malilib.hotkeys.IMouseInputHandler;
-import fi.dy.masa.malilib.hotkeys.KeyCallbackAdjustable;
+import fi.dy.masa.malilib.hotkeys.*;
 import fi.dy.masa.malilib.util.GuiUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.KeyCodes;
@@ -32,7 +30,6 @@ import fi.dy.masa.tweakeroo.config.FeatureToggle;
 import fi.dy.masa.tweakeroo.config.Hotkeys;
 import fi.dy.masa.tweakeroo.util.MiscUtils;
 import fi.dy.masa.tweakeroo.util.SnapAimMode;
-import net.minecraft.world.RaycastContext;
 
 public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IMouseInputHandler
 {
@@ -88,6 +85,7 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         {
             this.storeLastMovementDirection(keyCode, scanCode, mc);
         }
+
         MiscUtils.checkZoomStatus();
 
         if (eventKeyState && FeatureToggle.TWEAK_NOTEBLOCK_EDIT.getBooleanValue()) {
@@ -152,6 +150,7 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
     public boolean onMouseClick(int mouseX, int mouseY, int eventButton, boolean eventButtonState)
     {
         MinecraftClient mc = MinecraftClient.getInstance();
+
         if (mc.world == null || mc.player == null || mc.interactionManager == null || mc.crosshairTarget == null ||
                 GuiUtils.getCurrentScreen() != null)
         {
@@ -212,7 +211,6 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         {
             String preGreen = GuiBase.TXT_GREEN;
             String rst = GuiBase.TXT_RST;
-            
             if (FeatureToggle.TWEAK_NOTEBLOCK_EDIT.getBooleanValue() && Configs.Generic.NOTE_SCROLL.getBooleanValue())
             {
             	if (mc.world != null && mc.player != null && !mc.player.isSneaking() &&
@@ -238,9 +236,7 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
                         return true;
                     }
                 }
-            }
-
-            else if (FeatureToggle.TWEAK_HOTBAR_SCROLL.getBooleanValue() && Hotkeys.HOTBAR_SCROLL.getKeybind().isKeybindHeld())
+            } else if (FeatureToggle.TWEAK_HOTBAR_SCROLL.getBooleanValue() && Hotkeys.HOTBAR_SCROLL.getKeybind().isKeybindHeld())
             {
                 int currentRow = Configs.Internal.HOTBAR_SCROLL_CURRENT_ROW.getIntegerValue();
 
@@ -366,6 +362,50 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
 
                 return true;
             }
+            else if (FeatureToggle.TWEAK_PERIODIC_ATTACK.getKeybind().isKeybindHeld())
+            {
+                int newValue = Configs.Generic.PERIODIC_ATTACK_INTERVAL.getIntegerValue() + (dWheel > 0 ? 1 : -1);
+                Configs.Generic.PERIODIC_ATTACK_INTERVAL.setIntegerValue(newValue);
+                KeyCallbackAdjustable.setValueChanged();
+
+                String strValue = preGreen + Configs.Generic.PERIODIC_ATTACK_INTERVAL.getIntegerValue() + rst;
+                InfoUtils.printActionbarMessage("tweakeroo.message.set_periodic_attack_interval_to", strValue);
+
+                return true;
+            }
+            else if (FeatureToggle.TWEAK_PERIODIC_USE.getKeybind().isKeybindHeld())
+            {
+                int newValue = Configs.Generic.PERIODIC_USE_INTERVAL.getIntegerValue() + (dWheel > 0 ? 1 : -1);
+                Configs.Generic.PERIODIC_USE_INTERVAL.setIntegerValue(newValue);
+                KeyCallbackAdjustable.setValueChanged();
+
+                String strValue = preGreen + Configs.Generic.PERIODIC_USE_INTERVAL.getIntegerValue() + rst;
+                InfoUtils.printActionbarMessage("tweakeroo.message.set_periodic_use_interval_to", strValue);
+
+                return true;
+            }
+            else if (FeatureToggle.TWEAK_PERIODIC_HOLD_ATTACK.getKeybind().isKeybindHeld())
+            {
+                int newValue = Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.getIntegerValue() + (dWheel > 0 ? 1 : -1);
+                Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.setIntegerValue(newValue);
+                KeyCallbackAdjustable.setValueChanged();
+
+                String strValue = preGreen + Configs.Generic.PERIODIC_HOLD_ATTACK_INTERVAL.getIntegerValue() + rst;
+                InfoUtils.printActionbarMessage("tweakeroo.message.set_periodic_hold_attack_interval_to", strValue);
+
+                return true;
+            }
+            else if (FeatureToggle.TWEAK_PERIODIC_HOLD_USE.getKeybind().isKeybindHeld())
+            {
+                int newValue = Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.getIntegerValue() + (dWheel > 0 ? 1 : -1);
+                Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.setIntegerValue(newValue);
+                KeyCallbackAdjustable.setValueChanged();
+
+                String strValue = preGreen + Configs.Generic.PERIODIC_HOLD_USE_INTERVAL.getIntegerValue() + rst;
+                InfoUtils.printActionbarMessage("tweakeroo.message.set_periodic_hold_use_interval_to", strValue);
+
+                return true;
+            }
         }
 
         return false;
@@ -401,7 +441,7 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         }
     }
 
-    public void handleMovementKeys(Input movement)
+    public void handleMovementKeys(Input m)
     {
         GameOptions settings = MinecraftClient.getInstance().options;
 
@@ -409,15 +449,13 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         {
             if (this.lastSidewaysInput == LeftRight.LEFT)
             {
-                movement.movementSideways = 1;
-                movement.pressingLeft = true;
-                movement.pressingRight = false;
+                m.movementSideways = 1;
+                m.playerInput =  new PlayerInput(m.playerInput.forward(), m.playerInput.backward(), true, false, m.playerInput.jump(), m.playerInput.sneak(), m.playerInput.sprint());
             }
             else if (this.lastSidewaysInput == LeftRight.RIGHT)
             {
-                movement.movementSideways = -1;
-                movement.pressingLeft = false;
-                movement.pressingRight = true;
+                m.movementSideways = -1;
+                m.playerInput =  new PlayerInput(m.playerInput.forward(), m.playerInput.backward(), false, true, m.playerInput.jump(), m.playerInput.sneak(), m.playerInput.sprint());
             }
         }
 
@@ -425,15 +463,13 @@ public class InputHandler implements IKeybindProvider, IKeyboardInputHandler, IM
         {
             if (this.lastForwardInput == ForwardBack.FORWARD)
             {
-                movement.movementForward = 1;
-                movement.pressingForward = true;
-                movement.pressingBack = false;
+                m.movementForward = 1;
+                m.playerInput = new PlayerInput(true, false, m.playerInput.left(), m.playerInput.right(), m.playerInput.jump(), m.playerInput.sneak(), m.playerInput.sprint());
             }
             else if (this.lastForwardInput == ForwardBack.BACK)
             {
-                movement.movementForward = -1;
-                movement.pressingForward = false;
-                movement.pressingBack = true;
+                m.movementForward = -1;
+                m.playerInput = new PlayerInput(false, true, m.playerInput.left(), m.playerInput.right(), m.playerInput.jump(), m.playerInput.sneak(), m.playerInput.sprint());
             }
         }
     }

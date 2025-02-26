@@ -23,9 +23,6 @@
 		"main": [
 			"fi.dy.masa.tweakeroo.Tweakeroo"
 		],
-		"client": [
-			"fi.dy.masa.tweakeroo.ClientTweakeroo"
-		],
 		"modmenu": [
 			"fi.dy.masa.tweakeroo.compat.modmenu.ModMenuImpl"
 		]
@@ -36,7 +33,7 @@
 	],
 
 	"depends": {
-		"minecraft": ">=1.20.3",
-		"malilib": ">=0.18.1"
+		"minecraft": "1.21.4",
+		"malilib": ">=0.23.2-sakura.6"
 	}
 }

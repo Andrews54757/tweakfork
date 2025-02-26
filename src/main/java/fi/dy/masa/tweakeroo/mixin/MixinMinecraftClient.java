@@ -1,6 +1,6 @@
 package fi.dy.masa.tweakeroo.mixin;
 
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.Nullable;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,6 +21,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
+
 import fi.dy.masa.tweakeroo.config.FeatureToggle;
 import fi.dy.masa.tweakeroo.tweaks.MiscTweaks;
 import fi.dy.masa.tweakeroo.tweaks.PlacementTweaks;
@@ -30,15 +31,25 @@ import fi.dy.masa.tweakeroo.util.IMinecraftClientInvoker;
 @Mixin(MinecraftClient.class)
 public abstract class MixinMinecraftClient implements IMinecraftClientInvoker
 {
-    @Shadow @Nullable public ClientPlayerEntity player;
-    @Shadow @Nullable public ClientWorld world;
-    @Shadow @Nullable public Screen currentScreen;
-    @Shadow @Final public GameOptions options;
-    @Shadow private int itemUseCooldown;
-    @Shadow protected int attackCooldown;
+    @Shadow
+    @Nullable
+    public ClientPlayerEntity player;
+    @Shadow
+    @Nullable
+    public ClientWorld world;
+    @Shadow
+    @Nullable
+    public Screen currentScreen;
+    @Shadow
+    @Final
+    public GameOptions options;
+    @Shadow
+    private int itemUseCooldown;
+    @Shadow
+    protected int attackCooldown;
 
     @Shadow
-    private boolean doAttack() { return false; }
+    private boolean doAttack() {return false;}
 
     @Shadow
     private void doItemUse() {}
@@ -70,20 +81,28 @@ public abstract class MixinMinecraftClient implements IMinecraftClientInvoker
         }
     }
     
+    /**
+     * Copied From Tweak Fork by Andrew54757
+     */
     @Inject(method = "doAttack", at = @At("HEAD"), cancellable = true)
-    private void onLeftClickMouse(CallbackInfoReturnable<Boolean> ci)
+    private void onLeftClickMouse(CallbackInfoReturnable<Boolean> cir)
     {
-        if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()) {
+        if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue())
+        {
             RenderTweaks.select(false);
-            ci.cancel();
+            cir.cancel();
             return;
         }
     }
 
+    /**
+     * Copied From Tweak Fork by Andrew54757
+     */
     @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
     private void onRightClickMouse(CallbackInfo ci)
     {
-        if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue()) {
+        if (FeatureToggle.TWEAK_AREA_SELECTOR.getBooleanValue())
+        {
             RenderTweaks.select(true);
             ci.cancel();
             return;
@@ -162,6 +181,4 @@ public abstract class MixinMinecraftClient implements IMinecraftClientInvoker
             }
         }
     }
-
-
 }

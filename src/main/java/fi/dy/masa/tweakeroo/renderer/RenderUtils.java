@@ -1,52 +1,48 @@
 package fi.dy.masa.tweakeroo.renderer;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-
-import fi.dy.masa.malilib.util.Color4f;
-import fi.dy.masa.malilib.util.EntityUtils;
-import fi.dy.masa.malilib.util.GuiUtils;
-import fi.dy.masa.tweakeroo.config.Configs;
-import fi.dy.masa.tweakeroo.util.MiscUtils;
-import fi.dy.masa.tweakeroo.util.RayTraceUtils;
-import fi.dy.masa.tweakeroo.util.SnapAimMode;
+import java.util.HashSet;
+import java.util.Set;
 import org.joml.Matrix4f;
-import org.joml.Quaternionf;
+import org.joml.Matrix4fStack;
 
-import net.minecraft.block.Block;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gl.ShaderProgramKeys;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat.DrawMode;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.client.render.*;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
+import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.passive.AbstractHorseEntity;
 import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.entity.passive.WolfEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
 
-import fi.dy.masa.malilib.util.EntityUtils;
+import fi.dy.masa.malilib.config.HudAlignment;
+import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.util.GuiUtils;
+import fi.dy.masa.malilib.util.Color4f;
+import fi.dy.masa.malilib.util.game.BlockUtils;
+import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import fi.dy.masa.tweakeroo.config.Configs;
-import fi.dy.masa.tweakeroo.mixin.IMixinAbstractHorseEntity;
+import fi.dy.masa.tweakeroo.util.MiscUtils;
+import fi.dy.masa.tweakeroo.util.SnapAimMode;
 
 public class RenderUtils
 {
@@ -54,9 +50,13 @@ public class RenderUtils
 
     public static void renderHotbarSwapOverlay(MinecraftClient mc, DrawContext drawContext)
     {
+        if (mc.player == null)
+        {
+            return;
+        }
         PlayerEntity player = mc.player;
 
-        if (player != null && mc.currentScreen == null)
+        if (mc.currentScreen == null)
         {
             final int scaledWidth = GuiUtils.getScaledWindowWidth();
             final int scaledHeight = GuiUtils.getScaledWindowHeight();
@@ -65,7 +65,7 @@ public class RenderUtils
             int startX = offX;
             int startY = offY;
 
-            fi.dy.masa.malilib.config.HudAlignment align = (fi.dy.masa.malilib.config.HudAlignment) Configs.Generic.HOTBAR_SWAP_OVERLAY_ALIGNMENT.getOptionListValue();
+            HudAlignment align = (HudAlignment) Configs.Generic.HOTBAR_SWAP_OVERLAY_ALIGNMENT.getOptionListValue();
 
             switch (align)
             {
@@ -108,7 +108,7 @@ public class RenderUtils
 
                     if (stack.isEmpty() == false)
                     {
-                        fi.dy.masa.malilib.render.InventoryOverlay.renderStackAt(stack, x, y, 1, mc, drawContext);
+                        InventoryOverlay.renderStackAt(stack, x, y, 1, mc, drawContext);
                     }
 
                     x += 18;
@@ -122,70 +122,38 @@ public class RenderUtils
         }
     }
 
-    public static void renderInventoryOverlay(MinecraftClient mc, DrawContext drawContext)
+    // OG Method
+    public static void renderInventoryOverlay(InventoryOverlay.Context context, DrawContext drawContext)
     {
-        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(mc);
-        Entity cameraEntity = EntityUtils.getCameraEntity();
-
-        if (cameraEntity == mc.player && world instanceof ServerWorld)
-        {
-            // We need to get the player from the server world (if available, ie. in single player),
-            // so that the player itself won't be included in the ray trace
-            Entity serverPlayer = world.getPlayerByUuid(mc.player.getUuid());
-
-            if (serverPlayer != null)
-            {
-                cameraEntity = serverPlayer;
-            }
-        }
-
-        HitResult trace = RayTraceUtils.getRayTraceFromEntity(world, cameraEntity, false);
-
-        // Fixed issue with trace (tweakfork issue #60)
-        if (trace == null || trace.getType() == HitResult.Type.MISS)
-        {
-            return;
-        }
-
-        Inventory inv = null;
-        ShulkerBoxBlock block = null;
+        MinecraftClient mc = MinecraftClient.getInstance();
         LivingEntity entityLivingBase = null;
+        BlockEntity be = null;
+        Inventory inv = null;
+        NbtCompound nbt = new NbtCompound();
 
-        if (trace.getType() == HitResult.Type.BLOCK)
+        if (context.be() != null)
         {
-            BlockPos pos = ((BlockHitResult) trace).getBlockPos();
-            Block blockTmp = world.getBlockState(pos).getBlock();
-
-            if (blockTmp instanceof ShulkerBoxBlock)
-            {
-                block = (ShulkerBoxBlock) blockTmp;
-            }
-
-            inv = fi.dy.masa.malilib.util.InventoryUtils.getInventory(world, pos);
+            be = context.be();
         }
-        else if (trace.getType() == HitResult.Type.ENTITY)
+        else if (context.entity() != null)
         {
-            Entity entity = ((EntityHitResult) trace).getEntity();
-
-            if (entity instanceof LivingEntity)
+            if (context.entity() instanceof LivingEntity)
             {
-                entityLivingBase = (LivingEntity) entity;
-            }
-
-            if (entity instanceof Inventory)
-            {
-                inv = (Inventory) entity;
-            }
-            else if (entity instanceof VillagerEntity)
-            {
-                inv = ((VillagerEntity) entity).getInventory();
-            }
-            else if (entity instanceof AbstractHorseEntity)
-            {
-                inv = ((IMixinAbstractHorseEntity) entity).tweakeroo_getHorseInventory();
+                entityLivingBase = context.entity();
             }
         }
+        if (context.inv() != null)
+        {
+            inv = context.inv();
+        }
+        if (context.nbt() != null)
+        {
+            nbt.copyFrom(context.nbt());
+        }
 
+        //Tweakeroo.logger.error("render: ctx-type [{}], inv [{}], raw Nbt [{}]", context.type().toString(), inv != null ? inv.size() : "null", nbt.isEmpty() ? "empty" : nbt.toString());
+
+        final boolean isWolf = (entityLivingBase instanceof WolfEntity);
         final int xCenter = GuiUtils.getScaledWindowWidth() / 2;
         final int yCenter = GuiUtils.getScaledWindowHeight() / 2;
         int x = xCenter - 52 / 2;
@@ -194,12 +162,13 @@ public class RenderUtils
         if (inv != null && inv.size() > 0)
         {
             final boolean isHorse = (entityLivingBase instanceof AbstractHorseEntity);
-            final int totalSlots = isHorse ? inv.size() - 2 : inv.size();
-            final int firstSlot = isHorse ? 2 : 0;
+            final int totalSlots = isHorse ? inv.size() - 1 : inv.size();
+            final int firstSlot = isHorse ? 1 : 0;
 
-            final fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType type = (entityLivingBase instanceof VillagerEntity) ? fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType.VILLAGER : fi.dy.masa.malilib.render.InventoryOverlay.getInventoryType(inv);
-            final fi.dy.masa.malilib.render.InventoryOverlay.InventoryProperties props = fi.dy.masa.malilib.render.InventoryOverlay.getInventoryPropsTemp(type, totalSlots);
+            InventoryOverlay.InventoryRenderType type = (entityLivingBase instanceof VillagerEntity) ? InventoryOverlay.InventoryRenderType.VILLAGER : InventoryOverlay.getBestInventoryType(inv, nbt, context);
+            final InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, totalSlots);
             final int rows = (int) Math.ceil((double) totalSlots / props.slotsPerRow);
+            Set<Integer> lockedSlots = new HashSet<>();
             int xInv = xCenter - (props.width / 2);
             int yInv = yCenter - props.height - 6;
 
@@ -216,61 +185,129 @@ public class RenderUtils
                 yInv = Math.min(yInv, yCenter - 92);
             }
 
-            fi.dy.masa.malilib.render.RenderUtils.setShulkerboxBackgroundTintColor(block, Configs.Generic.SHULKER_DISPLAY_BACKGROUND_COLOR.getBooleanValue());
+            if (be != null && type == InventoryOverlay.InventoryRenderType.CRAFTER)
+            {
+                if (be instanceof CrafterBlockEntity cbe)
+                {
+                    lockedSlots = BlockUtils.getDisabledSlots(cbe);
+                }
+                else if (context.nbt() != null)
+                {
+                    lockedSlots = NbtBlockUtils.getDisabledSlotsFromNbt(context.nbt());
+                }
+            }
+
+            //Tweakeroo.logger.warn("renderInventoryOverlay: type [{}] // Nbt Type [{}] // inv.isEmpty({})", type.toString(), context.nbt() != null ? InventoryOverlay.getInventoryType(context.nbt()) : "INVALID", inv.isEmpty());
+
+            if (context.be() != null && context.be().getCachedState().getBlock() instanceof ShulkerBoxBlock sbb)
+            {
+                fi.dy.masa.malilib.render.RenderUtils.setShulkerboxBackgroundTintColor(sbb, Configs.Generic.SHULKER_DISPLAY_BACKGROUND_COLOR.getBooleanValue());
+            }
 
             if (isHorse)
             {
-                fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryBackground(type, xInv, yInv, 1, 2, mc);
-                fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryStacks(type, inv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, 1, 0, 2, mc, drawContext);
+                Inventory horseInv = new SimpleInventory(2);
+                ItemStack horseArmor = (((AbstractHorseEntity) entityLivingBase).getBodyArmor());
+                horseInv.setStack(0, horseArmor != null && !horseArmor.isEmpty() ? horseArmor : ItemStack.EMPTY);
+                horseInv.setStack(1, inv.getStack(0));
+
+                InventoryOverlay.renderInventoryBackground(type, xInv, yInv, 1, 2, mc);
+                InventoryOverlay.renderInventoryBackgroundSlots(type, horseInv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, drawContext);
+                InventoryOverlay.renderInventoryStacks(type, horseInv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, 1, 0, 2, mc, drawContext);
                 xInv += 32 + 4;
             }
 
             if (totalSlots > 0)
             {
-                fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, totalSlots, mc);
-                fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryStacks(type, inv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, firstSlot, totalSlots, mc, drawContext);
+                InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, totalSlots, mc);
+              
+                if (type == InventoryOverlay.InventoryRenderType.BREWING_STAND)
+                {
+                    InventoryOverlay.renderBrewerBackgroundSlots(inv, xInv, yInv, drawContext);
+                }
+              
+                InventoryOverlay.renderInventoryStacks(type, inv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, firstSlot, totalSlots, lockedSlots, mc, drawContext);
             }
+        }
+
+        if (isWolf)
+        {
+            InventoryOverlay.InventoryRenderType type = InventoryOverlay.InventoryRenderType.HORSE;
+            final InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, 2);
+            final int rows = (int) Math.ceil((double) 2 / props.slotsPerRow);
+            int xInv;
+            int yInv = yCenter - props.height - 6;
+
+            if (rows > 6)
+            {
+                yInv -= (rows - 6) * 18;
+                y -= (rows - 6) * 18;
+            }
+
+            x = xCenter - 55;
+            xInv = xCenter + 2;
+            yInv = Math.min(yInv, yCenter - 92);
+
+            Inventory wolfInv = new SimpleInventory(2);
+            ItemStack wolfArmor = ((WolfEntity) entityLivingBase).getBodyArmor();
+            wolfInv.setStack(0, wolfArmor != null && !wolfArmor.isEmpty() ? wolfArmor : ItemStack.EMPTY);
+            InventoryOverlay.renderInventoryBackground(type, xInv, yInv, 1, 2, mc);
+            InventoryOverlay.renderWolfArmorBackgroundSlots(wolfInv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, drawContext);
+            InventoryOverlay.renderInventoryStacks(type, wolfInv, xInv + props.slotOffsetX, yInv + props.slotOffsetY, 1, 0, 2, mc, drawContext);
         }
 
         if (entityLivingBase != null)
         {
-            fi.dy.masa.malilib.render.InventoryOverlay.renderEquipmentOverlayBackground(x, y, entityLivingBase, drawContext);
-            fi.dy.masa.malilib.render.InventoryOverlay.renderEquipmentStacks(entityLivingBase, x, y, mc, drawContext);
+            InventoryOverlay.renderEquipmentOverlayBackground(x, y, entityLivingBase, drawContext);
+            InventoryOverlay.renderEquipmentStacks(entityLivingBase, x, y, mc, drawContext);
         }
     }
 
     public static void renderPlayerInventoryOverlay(MinecraftClient mc, DrawContext drawContext)
     {
+        if (mc.player == null)
+        {
+            return;
+        }
+
+        Inventory inv = mc.player.getInventory();
+
         int x = GuiUtils.getScaledWindowWidth() / 2 - 176 / 2;
         int y = GuiUtils.getScaledWindowHeight() / 2 + 10;
         int slotOffsetX = 8;
         int slotOffsetY = 8;
-        fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType type = fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType.GENERIC;
+        InventoryOverlay.InventoryRenderType type = InventoryOverlay.InventoryRenderType.GENERIC;
 
         fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
 
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryBackground(type, x, y, 9, 27, mc);
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryStacks(type, mc.player.getInventory(), x + slotOffsetX, y + slotOffsetY, 9, 9, 27, mc, drawContext);
+        InventoryOverlay.renderInventoryBackground(type, x, y, 9, 27, mc);
+        InventoryOverlay.renderInventoryStacks(type, inv, x + slotOffsetX, y + slotOffsetY, 9, 9, 27, mc, drawContext);
     }
 
     public static void renderHotbarScrollOverlay(MinecraftClient mc, DrawContext drawContext)
     {
+        if (mc.player == null)
+        {
+            return;
+        }
+
         Inventory inv = mc.player.getInventory();
+
         final int xCenter = GuiUtils.getScaledWindowWidth() / 2;
         final int yCenter = GuiUtils.getScaledWindowHeight() / 2;
         final int x = xCenter - 176 / 2;
         final int y = yCenter + 6;
-        fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType type = fi.dy.masa.malilib.render.InventoryOverlay.InventoryRenderType.GENERIC;
+        InventoryOverlay.InventoryRenderType type = InventoryOverlay.InventoryRenderType.GENERIC;
 
         fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
 
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryBackground(type, x, y     , 9, 27, mc);
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryBackground(type, x, y + 70, 9,  9, mc);
+        InventoryOverlay.renderInventoryBackground(type, x, y     , 9, 27, mc);
+        InventoryOverlay.renderInventoryBackground(type, x, y + 70, 9,  9, mc);
 
         // Main inventory
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryStacks(type, inv, x + 8, y +  8, 9, 9, 27, mc, drawContext);
+        InventoryOverlay.renderInventoryStacks(type, inv, x + 8, y +  8, 9, 9, 27, mc, drawContext);
         // Hotbar
-        fi.dy.masa.malilib.render.InventoryOverlay.renderInventoryStacks(type, inv, x + 8, y + 78, 9, 0,  9, mc, drawContext);
+        InventoryOverlay.renderInventoryStacks(type, inv, x + 8, y + 78, 9, 0,  9, mc, drawContext);
 
         int currentRow = Configs.Internal.HOTBAR_SCROLL_CURRENT_ROW.getIntegerValue();
         fi.dy.masa.malilib.render.RenderUtils.drawOutline(x + 5, y + currentRow * 18 + 5, 9 * 18 + 4, 22, 2, 0xFFFF2020);
@@ -280,47 +317,73 @@ public class RenderUtils
     {
         if (entity instanceof LivingEntity living)
         {
-            final int resp = EnchantmentHelper.getRespiration(living);
-            final int aqua = EnchantmentHelper.getEquipmentLevel(Enchantments.AQUA_AFFINITY, living);
-            float fog = originalFog;
+            ItemStack head = living.getEquippedStack(EquipmentSlot.HEAD);
 
-            if (aqua > 0)
+            if (head.isEmpty() == false)
             {
-                fog *= 1.6f;
-            }
+                ItemEnchantmentsComponent enchants = head.getEnchantments();
+                float fog = (originalFog > 1.0f) ? 3.3f : 1.3f;
+                int resp = 0;
+                int aqua = 0;
 
-            if (resp > 0)
-            {
-                fog *= (float) resp * 1.6f;
-            }
+                if (enchants.equals(ItemEnchantmentsComponent.DEFAULT) == false)
+                {
+                    Set<RegistryEntry<Enchantment>> enchantList = enchants.getEnchantments();
 
-            return Math.max(fog, originalFog);
+                    for (RegistryEntry<Enchantment> entry : enchantList)
+                    {
+                        if (entry.matchesKey(Enchantments.AQUA_AFFINITY))
+                        {
+                            aqua = enchants.getLevel(entry);
+                        }
+                        if (entry.matchesKey(Enchantments.RESPIRATION))
+                        {
+                            resp = enchants.getLevel(entry);
+                        }
+                    }
+                }
+
+                if (aqua > 0)
+                {
+                    fog *= 1.6f;
+                }
+
+                if (resp > 0)
+                {
+                    fog *= (float) resp * 1.6f;
+                }
+
+                //Tweakeroo.logger.info("getLavaFogDistance: aqua {} resp {} orig: {} adjusted {}", aqua, resp, originalFog, fog);
+
+                return Math.max(fog, originalFog);
+            }
         }
 
         return originalFog;
     }
 
-    public static void renderDirectionsCursor(float zLevel, float partialTicks)
+    public static void renderDirectionsCursor(DrawContext drawContext)
     {
         MinecraftClient mc = MinecraftClient.getInstance();
 
-        int width = GuiUtils.getScaledWindowWidth();
-        int height = GuiUtils.getScaledWindowHeight();
         Camera camera = mc.gameRenderer.getCamera();
-        MatrixStack matrixStack = RenderSystem.getModelViewStack();
-        matrixStack.push();
-        matrixStack.translate(width / 2.0, height / 2.0, zLevel);
+        float width = (float) drawContext.getScaledWindowWidth() / 2;
+        float height = (float) drawContext.getScaledWindowHeight() / 2;
         float pitch = camera.getPitch();
         float yaw = camera.getYaw();
-        Quaternionf rot = new Quaternionf().rotationXYZ(-pitch * (float) (Math.PI / 180.0), yaw * (float) (Math.PI / 180.0), 0.0F);
-        matrixStack.multiply(rot);
-        //matrixStack.multiply(RotationAxis.NEGATIVE_X.rotationDegrees(camera.getPitch()));
-        //matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.getYaw()));
-        matrixStack.scale(-1.0F, -1.0F, -1.0F);
-        RenderSystem.applyModelViewMatrix();
+
+        RenderSystem.enableBlend();
+        Matrix4fStack matrix4fStack = RenderSystem.getModelViewStack();
+        matrix4fStack.pushMatrix();
+        matrix4fStack.mul(drawContext.getMatrices().peek().getPositionMatrix());
+        matrix4fStack.translate(width, height, 0.0F);
+        matrix4fStack.rotateX(fi.dy.masa.malilib.render.RenderUtils.matrix4fRotateFix(-pitch));
+        matrix4fStack.rotateY(fi.dy.masa.malilib.render.RenderUtils.matrix4fRotateFix(yaw));
+        matrix4fStack.scale(-1.0F, -1.0F, -1.0F);
         RenderSystem.renderCrosshair(10);
-        matrixStack.pop();
-        RenderSystem.applyModelViewMatrix();
+        matrix4fStack.popMatrix();
+        //RenderSystem.applyModelViewMatrix();
+        RenderSystem.disableBlend();
     }
 
     public static void notifyRotationChanged()
@@ -425,6 +488,11 @@ public class RenderUtils
 
     public static void renderPitchLockIndicator(MinecraftClient mc, DrawContext drawContext)
     {
+        if (mc.player == null)
+        {
+            return;
+        }
+
         final int xCenter = GuiUtils.getScaledWindowWidth() / 2;
         final int yCenter = GuiUtils.getScaledWindowHeight() / 2;
         int width = 12;
@@ -496,141 +564,145 @@ public class RenderUtils
         fi.dy.masa.malilib.render.RenderUtils.drawRect(x, lineY - 1, width, 2, 0xFFFFFFFF);
     }
 
-
     public static void renderBlockOutline(BlockPos pos, float expand, float lineWidth, Color4f color, MinecraftClient mc)
     {
         RenderSystem.lineWidth(lineWidth);
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        startDrawingLines(buffer);
-       
+        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BuiltBuffer meshData;
+
         drawBlockBoundingBoxOutlinesBatchedLines(pos, color, expand, buffer, mc);
 
-        tessellator.draw();
+        try
+        {
+            meshData = buffer.end();
+            BufferRenderer.drawWithGlobalProgram(meshData);
+            meshData.close();
+        }
+        catch (Exception ignored) { }
     }
-    
-    static void startDrawingLines(BufferBuilder buffer)
-    {
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-      
-        RenderSystem.applyModelViewMatrix();
-        buffer.begin(DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
-    }
-    
+
     public static void drawBlockBoundingBoxOutlinesBatchedLines(BlockPos pos, Color4f color,
-            double expand, BufferBuilder buffer, MinecraftClient mc)
+                                                                double expand, BufferBuilder buffer, MinecraftClient mc)
     {
         Vec3d cameraPos = mc.gameRenderer.getCamera().getPos();
         final double dx = cameraPos.x;
         final double dy = cameraPos.y;
         final double dz = cameraPos.z;
 
-        double minX = pos.getX() - dx - expand;
-        double minY = pos.getY() - dy - expand;
-        double minZ = pos.getZ() - dz - expand;
-        double maxX = pos.getX() - dx + expand + 1;
-        double maxY = pos.getY() - dy + expand + 1;
-        double maxZ = pos.getZ() - dz + expand + 1;
+        float minX = (float) (pos.getX() - dx - expand);
+        float minY = (float) (pos.getY() - dy - expand);
+        float minZ = (float) (pos.getZ() - dz - expand);
+        float maxX = (float) (pos.getX() - dx + expand + 1);
+        float maxY = (float) (pos.getY() - dy + expand + 1);
+        float maxZ = (float) (pos.getZ() - dz + expand + 1);
 
         fi.dy.masa.malilib.render.RenderUtils.drawBoxAllEdgesBatchedLines(minX, minY, minZ, maxX, maxY, maxZ, color, buffer);
     }
 
     public static void drawConnectingLineBatchedLines(BlockPos pos1, BlockPos pos2, boolean center,
-            Color4f color, BufferBuilder buffer, MinecraftClient mc)
+                                                      Color4f color, BufferBuilder buffer, MinecraftClient mc)
     {
         Vec3d cameraPos = mc.gameRenderer.getCamera().getPos();
         final double dx = cameraPos.x;
         final double dy = cameraPos.y;
         final double dz = cameraPos.z;
 
-        double x1 = pos1.getX() - dx;
-        double y1 = pos1.getY() - dy;
-        double z1 = pos1.getZ() - dz;
-        double x2 = pos2.getX() - dx;
-        double y2 = pos2.getY() - dy;
-        double z2 = pos2.getZ() - dz;
+        float x1 = (float) (pos1.getX() - dx);
+        float y1 = (float) (pos1.getY() - dy);
+        float z1 = (float) (pos1.getZ() - dz);
+        float x2 = (float) (pos2.getX() - dx);
+        float y2 = (float) (pos2.getY() - dy);
+        float z2 = (float) (pos2.getZ() - dz);
 
         if (center)
         {
-            x1 += 0.5;
-            y1 += 0.5;
-            z1 += 0.5;
-            x2 += 0.5;
-            y2 += 0.5;
-            z2 += 0.5;
+            x1 += 0.5F;
+            y1 += 0.5F;
+            z1 += 0.5F;
+            x2 += 0.5F;
+            y2 += 0.5F;
+            z2 += 0.5F;
         }
 
-        buffer.vertex(x1, y1, z1).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(x2, y2, z2).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(x1, y1, z1).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(x2, y2, z2).color(color.r, color.g, color.b, color.a);
     }
 
     public static void renderBlockOutlineOverlapping(BlockPos pos, float expand, float lineWidth,
-            Color4f color1, Color4f color2, Color4f color3, MatrixStack matrices, MinecraftClient mc)
+                                                     Color4f color1, Color4f color2, Color4f color3, MinecraftClient mc)
     {
         Vec3d cameraPos = mc.gameRenderer.getCamera().getPos();
         final double dx = cameraPos.x;
         final double dy = cameraPos.y;
         final double dz = cameraPos.z;
 
-        final double minX = pos.getX() - dx - expand;
-        final double minY = pos.getY() - dy - expand;
-        final double minZ = pos.getZ() - dz - expand;
-        final double maxX = pos.getX() - dx + expand + 1;
-        final double maxY = pos.getY() - dy + expand + 1;
-        final double maxZ = pos.getZ() - dz + expand + 1;
+        final float minX = (float) (pos.getX() - dx - expand);
+        final float minY = (float) (pos.getY() - dy - expand);
+        final float minZ = (float) (pos.getZ() - dz - expand);
+        final float maxX = (float) (pos.getX() - dx + expand + 1);
+        final float maxY = (float) (pos.getY() - dy + expand + 1);
+        final float maxZ = (float) (pos.getZ() - dz + expand + 1);
 
         RenderSystem.lineWidth(lineWidth);
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        startDrawingLines(buffer);
+        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BuiltBuffer meshData;
 
         // Min corner
-        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a).next();
-        buffer.vertex(maxX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a).next();
+        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a);
+        buffer.vertex(maxX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a);
 
-        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a).next();
-        buffer.vertex(minX, maxY, minZ).color(color1.r, color1.g, color1.b, color1.a).next();
+        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a);
+        buffer.vertex(minX, maxY, minZ).color(color1.r, color1.g, color1.b, color1.a);
 
-        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a).next();
-        buffer.vertex(minX, minY, maxZ).color(color1.r, color1.g, color1.b, color1.a).next();
+        buffer.vertex(minX, minY, minZ).color(color1.r, color1.g, color1.b, color1.a);
+        buffer.vertex(minX, minY, maxZ).color(color1.r, color1.g, color1.b, color1.a);
 
         // Max corner
-        buffer.vertex(minX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a).next();
+        buffer.vertex(minX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a);
 
-        buffer.vertex(maxX, minY, maxZ).color(color2.r, color2.g, color2.b, color2.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a).next();
+        buffer.vertex(maxX, minY, maxZ).color(color2.r, color2.g, color2.b, color2.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a);
 
-        buffer.vertex(maxX, maxY, minZ).color(color2.r, color2.g, color2.b, color2.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a).next();
+        buffer.vertex(maxX, maxY, minZ).color(color2.r, color2.g, color2.b, color2.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color2.r, color2.g, color2.b, color2.a);
 
         // The rest of the edges
-        buffer.vertex(minX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(maxX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(minX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(maxX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        buffer.vertex(minX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(maxX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(minX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(maxX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        buffer.vertex(maxX, minY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(maxX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(maxX, minY, minZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(maxX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        buffer.vertex(minX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(minX, maxY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(minX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(minX, maxY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        buffer.vertex(maxX, minY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(maxX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(maxX, minY, minZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(maxX, minY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        buffer.vertex(minX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a).next();
-        buffer.vertex(minX, maxY, maxZ).color(color3.r, color3.g, color3.b, color3.a).next();
+        buffer.vertex(minX, maxY, minZ).color(color3.r, color3.g, color3.b, color3.a);
+        buffer.vertex(minX, maxY, maxZ).color(color3.r, color3.g, color3.b, color3.a);
 
-        tessellator.draw();
+        try
+        {
+            meshData = buffer.end();
+            BufferRenderer.drawWithGlobalProgram(meshData);
+            meshData.close();
+        }
+        catch (Exception ignored) { }
     }
 
     public static void renderAreaOutline(BlockPos pos1, BlockPos pos2, float lineWidth,
-            Color4f colorX, Color4f colorY, Color4f colorZ, MinecraftClient mc)
+                                         Color4f colorX, Color4f colorY, Color4f colorZ, MinecraftClient mc)
     {
         RenderSystem.lineWidth(lineWidth);
 
@@ -646,80 +718,94 @@ public class RenderUtils
         double maxY = Math.max(pos1.getY(), pos2.getY()) - dy + 1;
         double maxZ = Math.max(pos1.getZ(), pos2.getZ()) - dz + 1;
 
-        drawBoundingBoxEdges(minX, minY, minZ, maxX, maxY, maxZ, colorX, colorY, colorZ);
+        drawBoundingBoxEdges((float) minX, (float) minY, (float) minZ, (float) maxX, (float) maxY, (float) maxZ, colorX, colorY, colorZ);
     }
 
-    private static void drawBoundingBoxEdges(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, Color4f colorX, Color4f colorY, Color4f colorZ)
+    private static void drawBoundingBoxEdges(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f colorX, Color4f colorY, Color4f colorZ)
     {
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
+
         Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder bufferbuilder = tessellator.getBuffer();
-        startDrawingLines(bufferbuilder);
+        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BuiltBuffer meshData;
 
-        drawBoundingBoxLinesX(bufferbuilder, minX, minY, minZ, maxX, maxY, maxZ, colorX);
-        drawBoundingBoxLinesY(bufferbuilder, minX, minY, minZ, maxX, maxY, maxZ, colorY);
-        drawBoundingBoxLinesZ(bufferbuilder, minX, minY, minZ, maxX, maxY, maxZ, colorZ);
+        drawBoundingBoxLinesX(buffer, minX, minY, minZ, maxX, maxY, maxZ, colorX);
+        drawBoundingBoxLinesY(buffer, minX, minY, minZ, maxX, maxY, maxZ, colorY);
+        drawBoundingBoxLinesZ(buffer, minX, minY, minZ, maxX, maxY, maxZ, colorZ);
 
-        tessellator.draw();
+        try
+        {
+            meshData = buffer.end();
+            BufferRenderer.drawWithGlobalProgram(meshData);
+            meshData.close();
+        }
+        catch (Exception ignored) { }
     }
 
-    private static void drawBoundingBoxLinesX(BufferBuilder buffer, double minX, double minY, double minZ, double maxX, double maxY, double maxZ, Color4f color)
+    private static void drawBoundingBoxLinesX(BufferBuilder buffer, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f color)
     {
-        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
     }
 
-    private static void drawBoundingBoxLinesY(BufferBuilder buffer, double minX, double minY, double minZ, double maxX, double maxY, double maxZ, Color4f color)
+    private static void drawBoundingBoxLinesY(BufferBuilder buffer, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f color)
     {
-        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
     }
 
-    private static void drawBoundingBoxLinesZ(BufferBuilder buffer, double minX, double minY, double minZ, double maxX, double maxY, double maxZ, Color4f color)
+    private static void drawBoundingBoxLinesZ(BufferBuilder buffer, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f color)
     {
-        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, minY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(minX, minY, maxZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(maxX, minY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, minY, maxZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(minX, maxY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(minX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
 
-        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a).next();
-        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(maxX, maxY, minZ).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(maxX, maxY, maxZ).color(color.r, color.g, color.b, color.a);
     }
 
-    public static void renderAreaSides(BlockPos pos1, BlockPos pos2, Color4f color, MatrixStack matrices, MinecraftClient mc)
+    public static void renderAreaSides(BlockPos pos1, BlockPos pos2, Color4f color, MinecraftClient mc)
     {
         RenderSystem.enableBlend();
         RenderSystem.disableCull();
 
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
         Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+        BuiltBuffer meshData;
 
         renderAreaSidesBatched(pos1, pos2, color, 0.002, buffer, mc);
 
-        tessellator.draw();
+        try
+        {
+            meshData = buffer.end();
+            BufferRenderer.drawWithGlobalProgram(meshData);
+            meshData.close();
+        }
+        catch (Exception ignored) { }
 
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
@@ -729,7 +815,7 @@ public class RenderUtils
      * Assumes a BufferBuilder in GL_QUADS mode has been initialized
      */
     public static void renderAreaSidesBatched(BlockPos pos1, BlockPos pos2, Color4f color,
-            double expand, BufferBuilder buffer, MinecraftClient mc)
+                                              double expand, BufferBuilder buffer, MinecraftClient mc)
     {
         Vec3d cameraPos = mc.gameRenderer.getCamera().getPos();
         final double dx = cameraPos.x;
@@ -742,11 +828,11 @@ public class RenderUtils
         double maxY = Math.max(pos1.getY(), pos2.getY()) + 1 - dy + expand;
         double maxZ = Math.max(pos1.getZ(), pos2.getZ()) + 1 - dz + expand;
 
-        fi.dy.masa.malilib.render.RenderUtils.drawBoxAllSidesBatchedQuads(minX, minY, minZ, maxX, maxY, maxZ, color, buffer);
+        fi.dy.masa.malilib.render.RenderUtils.drawBoxAllSidesBatchedQuads((float) minX, (float) minY, (float) minZ, (float) maxX, (float) maxY, (float) maxZ, color, buffer);
     }
 
     public static void renderAreaOutlineNoCorners(BlockPos pos1, BlockPos pos2,
-            float lineWidth, Color4f colorX, Color4f colorY, Color4f colorZ, MinecraftClient mc)
+                                                  float lineWidth, Color4f colorX, Color4f colorY, Color4f colorZ, MinecraftClient mc)
     {
         final int xMin = Math.min(pos1.getX(), pos2.getX());
         final int yMin = Math.min(pos1.getY(), pos2.getY());
@@ -761,27 +847,28 @@ public class RenderUtils
         final double dy = cameraPos.y;
         final double dz = cameraPos.z;
 
-        final double dxMin = -dx - expand;
-        final double dyMin = -dy - expand;
-        final double dzMin = -dz - expand;
-        final double dxMax = -dx + expand;
-        final double dyMax = -dy + expand;
-        final double dzMax = -dz + expand;
+        final float dxMin = (float) (-dx - expand);
+        final float dyMin = (float) (-dy - expand);
+        final float dzMin = (float) (-dz - expand);
+        final float dxMax = (float) (-dx + expand);
+        final float dyMax = (float) (-dy + expand);
+        final float dzMax = (float) (-dz + expand);
 
-        final double minX = xMin + dxMin;
-        final double minY = yMin + dyMin;
-        final double minZ = zMin + dzMin;
-        final double maxX = xMax + dxMax;
-        final double maxY = yMax + dyMax;
-        final double maxZ = zMax + dzMax;
+        final float minX = xMin + dxMin;
+        final float minY = yMin + dyMin;
+        final float minZ = zMin + dzMin;
+        final float maxX = xMax + dxMax;
+        final float maxY = yMax + dyMax;
+        final float maxZ = zMax + dzMax;
 
         int start, end;
 
         RenderSystem.lineWidth(lineWidth);
+        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
 
         Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        startDrawingLines(buffer);
+        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        BuiltBuffer meshData;
 
         // Edges along the X-axis
         start = (pos1.getX() == xMin && pos1.getY() == yMin && pos1.getZ() == zMin) || (pos2.getX() == xMin && pos2.getY() == yMin && pos2.getZ() == zMin) ? xMin + 1 : xMin;
@@ -789,8 +876,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(start + dxMin, minY, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
-            buffer.vertex(end   + dxMax, minY, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
+            buffer.vertex(start + dxMin, minY, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a);
+            buffer.vertex(end   + dxMax, minY, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a);
         }
 
         start = (pos1.getX() == xMin && pos1.getY() == yMax && pos1.getZ() == zMin) || (pos2.getX() == xMin && pos2.getY() == yMax && pos2.getZ() == zMin) ? xMin + 1 : xMin;
@@ -798,8 +885,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(start + dxMin, maxY + 1, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
-            buffer.vertex(end   + dxMax, maxY + 1, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
+            buffer.vertex(start + dxMin, maxY + 1, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a);
+            buffer.vertex(end   + dxMax, maxY + 1, minZ).color(colorX.r, colorX.g, colorX.b, colorX.a);
         }
 
         start = (pos1.getX() == xMin && pos1.getY() == yMin && pos1.getZ() == zMax) || (pos2.getX() == xMin && pos2.getY() == yMin && pos2.getZ() == zMax) ? xMin + 1 : xMin;
@@ -807,8 +894,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(start + dxMin, minY, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
-            buffer.vertex(end   + dxMax, minY, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
+            buffer.vertex(start + dxMin, minY, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a);
+            buffer.vertex(end   + dxMax, minY, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a);
         }
 
         start = (pos1.getX() == xMin && pos1.getY() == yMax && pos1.getZ() == zMax) || (pos2.getX() == xMin && pos2.getY() == yMax && pos2.getZ() == zMax) ? xMin + 1 : xMin;
@@ -816,8 +903,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(start + dxMin, maxY + 1, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
-            buffer.vertex(end   + dxMax, maxY + 1, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a).next();
+            buffer.vertex(start + dxMin, maxY + 1, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a);
+            buffer.vertex(end   + dxMax, maxY + 1, maxZ + 1).color(colorX.r, colorX.g, colorX.b, colorX.a);
         }
 
         // Edges along the Y-axis
@@ -826,8 +913,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(minX, start + dyMin, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
-            buffer.vertex(minX, end   + dyMax, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
+            buffer.vertex(minX, start + dyMin, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a);
+            buffer.vertex(minX, end   + dyMax, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a);
         }
 
         start = (pos1.getX() == xMax && pos1.getY() == yMin && pos1.getZ() == zMin) || (pos2.getX() == xMax && pos2.getY() == yMin && pos2.getZ() == zMin) ? yMin + 1 : yMin;
@@ -835,8 +922,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(maxX + 1, start + dyMin, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
-            buffer.vertex(maxX + 1, end   + dyMax, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
+            buffer.vertex(maxX + 1, start + dyMin, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a);
+            buffer.vertex(maxX + 1, end   + dyMax, minZ).color(colorY.r, colorY.g, colorY.b, colorY.a);
         }
 
         start = (pos1.getX() == xMin && pos1.getY() == yMin && pos1.getZ() == zMax) || (pos2.getX() == xMin && pos2.getY() == yMin && pos2.getZ() == zMax) ? yMin + 1 : yMin;
@@ -844,8 +931,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(minX, start + dyMin, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
-            buffer.vertex(minX, end   + dyMax, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
+            buffer.vertex(minX, start + dyMin, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a);
+            buffer.vertex(minX, end   + dyMax, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a);
         }
 
         start = (pos1.getX() == xMax && pos1.getY() == yMin && pos1.getZ() == zMax) || (pos2.getX() == xMax && pos2.getY() == yMin && pos2.getZ() == zMax) ? yMin + 1 : yMin;
@@ -853,8 +940,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(maxX + 1, start + dyMin, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
-            buffer.vertex(maxX + 1, end   + dyMax, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a).next();
+            buffer.vertex(maxX + 1, start + dyMin, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a);
+            buffer.vertex(maxX + 1, end   + dyMax, maxZ + 1).color(colorY.r, colorY.g, colorY.b, colorY.a);
         }
 
         // Edges along the Z-axis
@@ -863,8 +950,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(minX, minY, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
-            buffer.vertex(minX, minY, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
+            buffer.vertex(minX, minY, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
+            buffer.vertex(minX, minY, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
         }
 
         start = (pos1.getX() == xMax && pos1.getY() == yMin && pos1.getZ() == zMin) || (pos2.getX() == xMax && pos2.getY() == yMin && pos2.getZ() == zMin) ? zMin + 1 : zMin;
@@ -872,8 +959,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(maxX + 1, minY, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
-            buffer.vertex(maxX + 1, minY, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
+            buffer.vertex(maxX + 1, minY, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
+            buffer.vertex(maxX + 1, minY, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
         }
 
         start = (pos1.getX() == xMin && pos1.getY() == yMax && pos1.getZ() == zMin) || (pos2.getX() == xMin && pos2.getY() == yMax && pos2.getZ() == zMin) ? zMin + 1 : zMin;
@@ -881,8 +968,8 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(minX, maxY + 1, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
-            buffer.vertex(minX, maxY + 1, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
+            buffer.vertex(minX, maxY + 1, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
+            buffer.vertex(minX, maxY + 1, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
         }
 
         start = (pos1.getX() == xMax && pos1.getY() == yMax && pos1.getZ() == zMin) || (pos2.getX() == xMax && pos2.getY() == yMax && pos2.getZ() == zMin) ? zMin + 1 : zMin;
@@ -890,14 +977,16 @@ public class RenderUtils
 
         if (end > start)
         {
-            buffer.vertex(maxX + 1, maxY + 1, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
-            buffer.vertex(maxX + 1, maxY + 1, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a).next();
+            buffer.vertex(maxX + 1, maxY + 1, start + dzMin).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
+            buffer.vertex(maxX + 1, maxY + 1, end   + dzMax).color(colorZ.r, colorZ.g, colorZ.b, colorZ.a);
         }
 
-        tessellator.draw();
+        try
+        {
+            meshData = buffer.end();
+            BufferRenderer.drawWithGlobalProgram(meshData);
+            meshData.close();
+        }
+        catch (Exception ignored) { }
     }
-
-
-   
-    
 }

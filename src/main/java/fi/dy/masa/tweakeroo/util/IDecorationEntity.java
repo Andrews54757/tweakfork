@@ -2,6 +2,10 @@ package fi.dy.masa.tweakeroo.util;
 
 import net.minecraft.util.math.BlockPos;
 
-public interface IDecorationEntity {
-    BlockPos getAttatched();
+/**
+ * Copied From Tweak Fork by Andrew54757
+ */
+public interface IDecorationEntity
+{
+    BlockPos tweakeroo$getAttached();
 }

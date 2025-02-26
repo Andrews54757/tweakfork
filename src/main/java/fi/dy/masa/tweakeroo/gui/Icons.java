@@ -3,6 +3,7 @@ package fi.dy.masa.tweakeroo.gui;
 import fi.dy.masa.malilib.gui.interfaces.IGuiIcon;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.tweakeroo.Reference;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.Identifier;
 
 public enum Icons implements IGuiIcon
@@ -33,7 +34,7 @@ public enum Icons implements IGuiIcon
     ARROW_UP                (209,   0, 15, 15),
     ARROW_DOWN              (209,  15, 15, 15);
 
-    public static final Identifier TEXTURE = new Identifier(Reference.MOD_ID, "textures/gui/gui_widgets.png");
+    public static final Identifier TEXTURE = Identifier.of(Reference.MOD_ID, "textures/gui/gui_widgets.png");
 
     private final int u;
     private final int v;
@@ -73,7 +74,7 @@ public enum Icons implements IGuiIcon
     }
 
     @Override
-    public void renderAt(int x, int y, float zLevel, boolean enabled, boolean selected)
+    public void renderAt(int x, int y, float zLevel, boolean enabled, boolean selected, DrawContext context)
     {
         RenderUtils.drawTexturedRect(x, y, this.u, this.v, this.w, this.h, zLevel);
     }
